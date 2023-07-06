@@ -11,7 +11,7 @@ package org.jetbrains.plugins.scala.console.apluscourses
 
 import com.intellij.openapi.actionSystem.{AnActionEvent, CommonDataKeys}
 import com.intellij.openapi.util.TextRange
-import fi.aalto.cs.apluscourses.intellij.Repl
+import fi.aalto.cs.replace.intellij.Repl
 import org.jetbrains.plugins.scala.console.ScalaConsoleInfo
 import org.jetbrains.plugins.scala.console.actions.ScalaConsoleExecuteAction
 import org.jetbrains.plugins.scala.extensions.inWriteAction

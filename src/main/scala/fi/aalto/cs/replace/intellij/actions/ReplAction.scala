@@ -1,4 +1,4 @@
-package fi.aalto.cs.apluscourses.intellij.actions
+package fi.aalto.cs.replace.intellij.actions
 
 import com.intellij.execution.configurations._
 import com.intellij.execution.filters.TextConsoleBuilderImpl
@@ -10,13 +10,13 @@ import com.intellij.openapi.module.{Module, ModuleManager}
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.io.FileUtilRt.toSystemIndependentName
-import fi.aalto.cs.apluscourses.intellij.Repl
-import fi.aalto.cs.apluscourses.intellij.services.PluginSettings
-import fi.aalto.cs.apluscourses.intellij.services.PluginSettings.MODULE_REPL_INITIAL_COMMANDS_FILE_NAME
-import fi.aalto.cs.apluscourses.intellij.utils.ModuleUtils
-import fi.aalto.cs.apluscourses.presentation.ReplConfigurationFormModel
-import fi.aalto.cs.apluscourses.ui.repl.{ReplConfigurationDialog, ReplConfigurationForm}
-import fi.aalto.cs.apluscourses.utils.PluginResourceBundle.{getAndReplaceText, getText}
+import fi.aalto.cs.replace.intellij.Repl
+import fi.aalto.cs.replace.intellij.services.PluginSettings
+import fi.aalto.cs.replace.intellij.services.PluginSettings.MODULE_REPL_INITIAL_COMMANDS_FILE_NAME
+import fi.aalto.cs.replace.intellij.utils.ModuleUtils
+import fi.aalto.cs.replace.presentation.ReplConfigurationFormModel
+import fi.aalto.cs.replace.ui.repl.{ReplConfigurationDialog, ReplConfigurationForm}
+import fi.aalto.cs.replace.utils.PluginResourceBundle.{getAndReplaceText, getText}
 import org.jetbrains.annotations.NotNull
 import org.jetbrains.plugins.scala.actions.ScalaActionUtil
 import org.jetbrains.plugins.scala.console.actions.RunConsoleAction

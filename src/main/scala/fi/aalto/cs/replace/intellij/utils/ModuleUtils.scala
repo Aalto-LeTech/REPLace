@@ -1,4 +1,4 @@
-package fi.aalto.cs.apluscourses.intellij.utils
+package fi.aalto.cs.replace.intellij.utils
 
 import com.intellij.openapi.actionSystem.{CommonDataKeys, DataContext}
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -7,8 +7,8 @@ import com.intellij.openapi.module.{Module, ModuleUtilCore}
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.{ModuleRootManager, OrderEnumerator}
 import com.intellij.openapi.util.io.FileUtilRt
-import fi.aalto.cs.apluscourses.intellij.services.PluginSettings
-import fi.aalto.cs.apluscourses.utils.PluginResourceBundle.{getAndReplaceText, getText}
+import fi.aalto.cs.replace.intellij.services.PluginSettings
+import fi.aalto.cs.replace.utils.PluginResourceBundle.{getAndReplaceText, getText}
 import org.apache.commons.io.FileUtils
 import org.jetbrains.annotations.NotNull
 import org.slf4j.LoggerFactory
@@ -106,7 +106,7 @@ object ModuleUtils {
         .map(_.capitalize)
         .mkString("+")
     } else {
-      getText("ui.repl.console.welcome.shortcutMissing")
+      "ui.repl.console.welcome.shortcutMissing"
     }
   }
 
