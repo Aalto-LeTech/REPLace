@@ -8,10 +8,9 @@ import org.jetbrains.annotations.NotNull
 import org.jetbrains.scala.samples.SamplePluginBundle
 
 @Service
-final class ProjectHelloService(project: Project) {
+final class ProjectHelloService(project: Project):
   def getProjectHelloInfo: String =
     SamplePluginBundle.message("hello.from.project.getname", project.getName)
-}
 
 object ProjectHelloService {
   def getInstance(@NotNull project: Project): ProjectHelloService =

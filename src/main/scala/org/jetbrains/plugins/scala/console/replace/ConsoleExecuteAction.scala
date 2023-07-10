@@ -7,7 +7,7 @@
 // uses the ScalaLanguageConsole.textSent() method, which is package private. Therefore, in order to
 // call it, we must be in the same package as the console: org.jetbrains.plugins.scala.console.
 
-package org.jetbrains.plugins.scala.console.apluscourses
+package org.jetbrains.plugins.scala.console.replace
 
 import com.intellij.openapi.actionSystem.{AnActionEvent, CommonDataKeys}
 import com.intellij.openapi.util.TextRange
@@ -16,7 +16,7 @@ import org.jetbrains.plugins.scala.console.ScalaConsoleInfo
 import org.jetbrains.plugins.scala.console.actions.ScalaConsoleExecuteAction
 import org.jetbrains.plugins.scala.extensions.inWriteAction
 
-class ConsoleExecuteAction extends ScalaConsoleExecuteAction {
+class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
   // We achieve proper multiline support by surrounding the REPL commands by special
   // ANSI sequences indicating "bracketed paste". We exploit the fact that Scala 3 REPL
   // uses the JLine 3 library, which explicitly supports the bracketed paste sequences.
@@ -36,25 +36,22 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction {
   // to 64 characters in order to appease JLine. (This only occurs for DumbTerminals)
   private val JLineBufferLength = 64
 
-  private def padTextToBlockLength(text: String): Array[Byte] = {
+  private def padTextToBlockLength(text: String): Array[Byte] =
     var userInputBytes: Array[Byte] = text.getBytes
     val contentLength = userInputBytes.length + EndPaste.length
 
     // We pad the input with some "neutral" character - a one that will have no side effects
     // even if we add fifty of these. Space seems to be a good candidate.
-    if (contentLength % JLineBufferLength != 0) {
+    if contentLength % JLineBufferLength != 0 then
       userInputBytes = userInputBytes ++
         Array.fill[Byte](JLineBufferLength - (contentLength % JLineBufferLength))(' ')
-    }
 
     userInputBytes
-  }
 
-  override def actionPerformed(e: AnActionEvent): Unit = {
+  override def actionPerformed(e: AnActionEvent): Unit =
     val editor = e.getData(CommonDataKeys.EDITOR)
-    if (editor == null) {
+    if editor == null then
       return // scalastyle:ignore
-    }
 
     val console = ScalaConsoleInfo.getConsole(editor)
     val processHandler = ScalaConsoleInfo.getProcessHandler(editor)
@@ -66,14 +63,13 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction {
     // We should perform our multiline fixing only for our custom REPL that is running Scala 3.
     // Non-A+ REPLs or those that host Scala 2 should not be modified.
     // Additionally, if the text has no newlines, we don't need to do the bracketed paste.
-    if (!console.isInstanceOf[Repl] || !console.asInstanceOf[Repl].isScala3REPL ||
-        !text.exists(c => c == '\n' || c == '\r')) {
+    if !console.isInstanceOf[Repl] || !console.asInstanceOf[Repl].isScala3REPL ||
+        !text.exists(c => c == '\n' || c == '\r') then
       super.actionPerformed(e)
       return // scalastyle:ignore
-    }
 
     // Process input and add to history
-    inWriteAction {
+    inWriteAction:
       val range: TextRange = new TextRange(0, document.getTextLength)
       editor.getSelectionModel.setSelection(range.getStartOffset, range.getEndOffset)
       // note: it uses `range` instead ot just editor `text` because under the hood it splits actual editor content
@@ -86,7 +82,6 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction {
 
       editor.getCaretModel.moveToOffset(0)
       editor.getDocument.setText("")
-    }
 
     // the "start paste" sequence has to be in a separate write call, otherwise JLine won't
     // pick it up properly; it seems to be yet another quirk of JLine and DumbTerminal
@@ -98,5 +93,3 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction {
     outputStream.flush()
 
     console.textSent(text)
-  }
-}

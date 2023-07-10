@@ -7,13 +7,11 @@ import com.intellij.openapi.fileEditor.{FileEditorManager, FileEditorManagerList
 import com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.scala.samples.SamplePluginBundle
 
-class FileOpenedListener extends FileEditorManagerListener {
-  override def fileOpened(source: FileEditorManager, file: VirtualFile): Unit = {
+class FileOpenedListener extends FileEditorManagerListener:
+  override def fileOpened(source: FileEditorManager, file: VirtualFile): Unit =
     Notifications.Bus.notify(
       new Notification("My Plugin Notification",
         SamplePluginBundle.message("file.opened"),
         SamplePluginBundle.message("name.getname", file.getName),
         NotificationType.INFORMATION)
     )
-  }
-}

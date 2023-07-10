@@ -13,21 +13,21 @@ import org.jetbrains.scala.samples.services.{ApplicationHelloService, ProjectHel
 
 import javax.swing._
 
-class PopupDialogAction extends AnAction() {
+class PopupDialogAction extends AnAction():
 
   /**
    * Gives the user feedback when the dynamic action menu is chosen.
    * Pops a simple message dialog.
    * @param event Event received when the associated menu item is chosen.
    */
-  override def actionPerformed(event: AnActionEvent): Unit = { // Using the event, create and show a dialog
+  override def actionPerformed(event: AnActionEvent): Unit = // Using the event, create and show a dialog
     val currentProject = event.getProject
     val dlgMsg = new StringBuilder(SamplePluginBundle.message("gettext.selected", event.getPresentation.getText) + '\n')
     val dlgTitle = event.getPresentation.getDescription
 
     // If an element is selected in the editor, add info about it.
     val nav = event.getData(CommonDataKeys.NAVIGATABLE)
-    if (nav != null)
+    if nav != null then
       dlgMsg.append(SamplePluginBundle.message("selected.element.tostring", nav.toString) + '\n')
 
     val appHelloMessage = ApplicationHelloService.getInstance.getApplicationHelloInfo
@@ -37,7 +37,6 @@ class PopupDialogAction extends AnAction() {
     dlgMsg.append(projectMessage + '\n')
 
     Messages.showMessageDialog(currentProject, dlgMsg.toString, dlgTitle, Messages.getInformationIcon)
-  }
 
   /**
    * Determines whether this menu item is available for the current context.
@@ -45,8 +44,6 @@ class PopupDialogAction extends AnAction() {
    *
    * @param e Event received when the associated group-id menu is chosen.
    */
-  override def update(e: AnActionEvent): Unit = { // Set the availability based on whether a project is open
+  override def update(e: AnActionEvent): Unit = // Set the availability based on whether a project is open
     val project = e.getProject
     e.getPresentation.setEnabledAndVisible(project != null)
-  }
-}

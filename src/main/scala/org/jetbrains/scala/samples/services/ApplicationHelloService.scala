@@ -7,11 +7,9 @@ import com.intellij.openapi.components.Service
 import org.jetbrains.scala.samples.SamplePluginBundle
 
 @Service
-final class ApplicationHelloService {
+final class ApplicationHelloService:
   def getApplicationHelloInfo: String =
     SamplePluginBundle.message("hello.this.is.asstring", ApplicationInfo.getInstance().getBuild.asString())
-}
 
-object ApplicationHelloService {
+object ApplicationHelloService:
   def getInstance: ApplicationHelloService = ApplicationManager.getApplication().getService(classOf[ApplicationHelloService])
-}

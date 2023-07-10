@@ -7,9 +7,8 @@ import com.intellij.openapi.wm.{ToolWindow, ToolWindowFactory}
 import com.intellij.ui.components.JBLabel
 import org.jetbrains.scala.samples.SamplePluginBundle
 
-class MyToolWindowFactory extends ToolWindowFactory {
+class MyToolWindowFactory extends ToolWindowFactory:
 
   override def createToolWindowContent(project: Project, toolWindow: ToolWindow): Unit =
     toolWindow.getComponent.add(new JBLabel(SamplePluginBundle.message("my.cool.tool.window")))
 
-}

@@ -1,11 +1,11 @@
 import org.jetbrains.sbtidea.Keys._
 
-lazy val myAwesomeFramework =
+lazy val replace =
   project.in(file("."))
     .enablePlugins(SbtIdeaPlugin)
     .settings(
       version := "0.0.1-SNAPSHOT",
-      scalaVersion := "2.13.10",
+      scalaVersion := "3.3.0",
       ThisBuild / intellijPluginName := "REPL-ace",
       ThisBuild / intellijBuild      := "231.9011.34",
       ThisBuild / intellijPlatform   := IntelliJPlatform.IdeaCommunity,

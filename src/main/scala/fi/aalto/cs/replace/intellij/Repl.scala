@@ -1,13 +1,15 @@
 package fi.aalto.cs.replace.intellij
 
-import com.intellij.execution.ui.ConsoleViewContentType
+import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.ui.{ConsoleViewContentType, ObservableConsoleView}
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.Module
 //import fi.aalto.cs.replace.intellij.services.PluginSettings
 import fi.aalto.cs.replace.intellij.utils.ModuleUtils.{getInitialReplCommands, getUpdatedText}
 import fi.aalto.cs.replace.intellij.utils.{ModuleUtils, ReplChangesObserver}
 //import fi.aalto.cs.replace.ui.ReplBannerPanel
 import org.jetbrains.plugins.scala.console.ScalaLanguageConsole
-import org.jetbrains.plugins.scala.console.apluscourses.ScalaExecutor
+import org.jetbrains.plugins.scala.console.replace.ScalaExecutor
 
 import java.awt.AWTEvent
 import java.awt.BorderLayout
@@ -15,7 +17,7 @@ import java.awt.Component
 import java.awt.Toolkit
 import javax.swing.SwingUtilities
 
-class Repl(module: Module) extends ScalaLanguageConsole(module: Module) {
+class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   private var initialReplWelcomeMessageHasBeenReplaced: Boolean = false
   private val initialReplWelcomeMessageToBeReplaced: String =
     "Type in expressions for evaluation. Or try :help.\n"
@@ -43,40 +45,56 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module) {
   // the console is hosting a Scala 3 REPL or something else
   val isScala3REPL: Boolean = ModuleUtils.isScala3Module(module)
 
-  override def print(text: String, contentType: ConsoleViewContentType): Unit = {
+  private var pastHistory = ""
+  private var readingOutput = false
+  private var latestOutput = ""
+
+  override def print(text: String, contentType: ConsoleViewContentType): Unit =
+    val latestCommand = getHistory.substring(pastHistory.length)
+    pastHistory = getHistory
+    if latestCommand != "" then
+      println("new history: " + latestCommand)
+      readingOutput = true
+      super.print(s"The length of the command is ${latestCommand.trim.length}\n", ConsoleViewContentType.LOG_INFO_OUTPUT)
+
+    if readingOutput then
+      if text.trim == scalaPromptText then
+        readingOutput = false
+        println("output: " + latestOutput.trim)
+        super.print(s"The length of the output is ${latestOutput.trim.length}\n", ConsoleViewContentType.LOG_INFO_OUTPUT)
+        latestOutput = ""
+      else
+        latestOutput += text
+
+
     var updatedText = text
 
-    if (text.equals(initialReplWelcomeMessageToBeReplaced)
-      && !initialReplWelcomeMessageHasBeenReplaced) {
+    if text.equals(initialReplWelcomeMessageToBeReplaced)
+      && !initialReplWelcomeMessageHasBeenReplaced then
       val commands = getInitialReplCommands(module)
       updatedText = getUpdatedText(module, commands, text)
 
       // Normally, in Scala 2, we would have used the "-i" argument to pass initial REPL commands
       // Unfortunately, this has not been ported into Scala 3
-      if (isScala3REPL) {
+      if isScala3REPL then
         remainingPromptsToSkip = commands.length
         commands.foreach(cmd => ScalaExecutor.runLine(this, cmd))
-      }
 
       initialReplWelcomeMessageHasBeenReplaced = true
-    }
 
     // When auto-executing commands in Scala 3 using ScalaExecutor, the prompt is printed
     // after every execution. We hide these prompts so as not to confuse the user
-    if (remainingPromptsToSkip > 0 && (text.trim == scalaPromptText || text.trim == "")) {
-      if (text.trim == scalaPromptText) {
+    if remainingPromptsToSkip > 0 && (text.trim == scalaPromptText || text.trim == "") then
+      if text.trim == scalaPromptText then
         remainingPromptsToSkip -= 1
-      }
-      return // scalastyle:ignore
-    }
-
-    // In Scala 3 REPL, the "scala>" prompt is colored blue by sending appropriate ANSI sequences
-    // This is not handled correctly by Scala plugin which expects the prompt to be sent with
-    // the NORMAL_OUTPUT attributes; this breaks the REPL state machine
-    // Therefore we override the text attributes for the prompt. The unintended consequence
-    // of this fix is that output lines equal to the prompt will also lose their text attributes.
-    super.print(updatedText,
-      if (text.trim == scalaPromptText) ConsoleViewContentType.NORMAL_OUTPUT else contentType
-    )
-  }
-}
+      end if
+    else
+      // In Scala 3 REPL, the "scala>" prompt is colored blue by sending appropriate ANSI sequences
+      // This is not handled correctly by Scala plugin which expects the prompt to be sent with
+      // the NORMAL_OUTPUT attributes; this breaks the REPL state machine
+      // Therefore we override the text attributes for the prompt. The unintended consequence
+      // of this fix is that output lines equal to the prompt will also lose their text attributes.
+      super.print(updatedText,
+        if text.trim == scalaPromptText then ConsoleViewContentType.NORMAL_OUTPUT else contentType
+      )
+    end if

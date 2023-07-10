@@ -8,7 +8,7 @@ import com.intellij.lang.properties.parsing.PropertiesTokenTypes.VALUE_CHARACTER
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.util.ProcessingContext
 
-class SimpleCompletionContributor() extends CompletionContributor {
+class SimpleCompletionContributor() extends CompletionContributor:
 
   extend(
     CompletionType.BASIC,
@@ -19,4 +19,3 @@ class SimpleCompletionContributor() extends CompletionContributor {
     }
   )
 
-}
