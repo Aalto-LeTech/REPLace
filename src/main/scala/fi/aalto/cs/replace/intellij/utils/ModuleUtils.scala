@@ -59,6 +59,11 @@ object ModuleUtils:
       case 1 => getAndReplaceText("ui.repl.console.welcome.autoImport.single.message", imports.head)
       case _ => getAndReplaceText("ui.repl.console.welcome.autoImport.multiple.message", imports.mkString(", "))
 
+  def getAndHidePropmt(@NotNull originalText: String): String =
+
+      getAndReplaceText("ui,repl.console.scala.repl.replacePrompt", originalText)
+
+
   def getUpdatedText(@NotNull module: Module,
                      @NotNull commands: List[String],
                      @NotNull originalText: String): String =
