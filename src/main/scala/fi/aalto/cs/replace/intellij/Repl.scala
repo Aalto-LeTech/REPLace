@@ -51,55 +51,76 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   // We need this here because the overridden ConsoleExecuteAction needs to determine whether
   // the console is hosting a Scala 3 REPL or something else
   val isScala3REPL: Boolean = ModuleUtils.isScala3Module(module)
+  private val isO1Library: Boolean = module.getName == "O1Library"
 
   private var pastHistory = ""
   private var readingOutput = false
   private var latestOutput = ""
   private var inputBuffer = Array[String]()
   private var outputBuffer = Array[String]()
-  private var command = ""
+  private var userInput = ""
+  private var output = ""
   private var inspectingLines: Boolean = false
-  private var inspectPrompsToSkip: Int = 0
+  private var inspectPromptsToSkip: Int = 0
 
+  private def isError: Boolean =
+    val pattern = """^\d+\s(erro(r|rs) found)""".r
+    val patternMatches: Boolean = pattern matches(output)
+    patternMatches| output.contains("longer explanation available when compiling with `-explain`")
+
+  private def shouldInspectCode(): Boolean =
+    isO1Library && isScala3REPL
+      && userInput.nonEmpty && output.nonEmpty
+      && !userInput.contains("TreeParser.inspectLine")
+      && !userInput.contains("import")
+      && !isError
 
   override def print(text: String, contentType: ConsoleViewContentType): Unit =
-    println(Console.GREEN + "TEXT: " + text)
     val latestCommand = getHistory.substring(pastHistory.length)
     pastHistory = getHistory
-    if latestCommand != "" then
-      readingOutput = true
-      command = latestCommand
-      inputBuffer = latestCommand.trim.split("\n")
+    if isO1Library then
+      if latestCommand.nonEmpty then
+        output = ""
+        userInput = ""
+        inputBuffer = Array[String]()
+        outputBuffer = Array[String]()
+        println(Console.YELLOW + "Latest command: " + latestCommand)
+        inputBuffer = latestCommand.trim.split("\n")
 
+        if inputBuffer.length == 1 then
+          if !latestCommand.contains("TreeParser.inspectLine") then
+            readingOutput = true
+            userInput = inputBuffer.head
 
-    if readingOutput then
-      if text.trim == scalaPromptText then
-        readingOutput = false
-        outputBuffer = latestOutput.trim.split("\n")
-//        outputBuffer.foreach(output => println(Console.MAGENTA + output))
-        latestOutput = ""
-      else
-        latestOutput += text
+      if readingOutput then
+        if text.trim == scalaPromptText then
+          readingOutput = false
+          outputBuffer = latestOutput.trim.split("\n")
+          if outputBuffer.length > 0 then
+            output = outputBuffer.last
+            println(Console.YELLOW + "Latest output: " + output)
+          latestOutput = ""
+        else
+          latestOutput += text
 
-    if inputBuffer.nonEmpty && outputBuffer.nonEmpty && (inputBuffer.length == outputBuffer.length) then
-      if module.getName == "O1Library" then
-        if !command.contains("TreeParser.inspect") && !command.contains("import") then
-          inputBuffer.zip(outputBuffer).foreach(((i, o) =>
-            println(Console.MAGENTA + "RAN INSPECTLINE")
-            ScalaExecutor.runLine(this, s"""TreeParser.inspectLine({${i}}, "${o}" )""")
-            ))
-          inspectingLines = true
-          inspectPrompsToSkip = inputBuffer.length
-      inputBuffer = Array[String]()
-      outputBuffer = Array[String]()
-      command = ""
+      if shouldInspectCode() then
+        println(Console.MAGENTA + "RAN INSPECTLINE, output: " + output)
+        println(Console.MAGENTA + "input: " + userInput)
+        ScalaExecutor.runLine(this, s"""TreeParser.inspectLine({${userInput}},\"\"\"${userInput}\"\"\", \"\"\"${output}\"\"\")""")
+        inspectingLines = true
+        inspectPromptsToSkip = inputBuffer.length
+
+        inputBuffer = Array[String]()
+        outputBuffer = Array[String]()
+        userInput = ""
+        output = ""
+
     var updatedText = text
 
-    if inspectingLines && (text.trim() == scalaPromptText) && inspectPrompsToSkip > 0 then
-      // println(Console.BLUE + "PÖÖÖ")
+    if inspectingLines && (text.trim() == scalaPromptText) && inspectPromptsToSkip > 0 then
       updatedText = getAndHidePropmt(text)
-      inspectPrompsToSkip -= 1
-      if inspectPrompsToSkip == 0 then
+      inspectPromptsToSkip -= 1
+      if inspectPromptsToSkip == 0 then
         inspectingLines = false
 
 
@@ -108,7 +129,7 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
       && !initialReplWelcomeMessageHasBeenReplaced then
 
       val commands = if module.getName == "O1Library" then
-        getInitialReplCommands(module)  :+ s"import o1.TreeParser"
+        getInitialReplCommands(module)  :+ s"import o1.util.TreeParser"
       else
         getInitialReplCommands(module)
 
