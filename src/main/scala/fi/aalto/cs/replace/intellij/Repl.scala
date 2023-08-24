@@ -1,8 +1,8 @@
 package fi.aalto.cs.replace.intellij
 
-import com.intellij.execution.process.ProcessHandler
+// import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.ui.{ConsoleViewContentType, ObservableConsoleView}
-import com.intellij.openapi.Disposable
+// import com.intellij.openapi.Disposable
 import com.intellij.openapi.module.{Module, ModuleUtilCore}
 import fi.aalto.cs.replace.intellij.utils.ModuleUtils.getAndHidePropmt
 //import fi.aalto.cs.replace.intellij.services.PluginSettings
@@ -11,13 +11,8 @@ import fi.aalto.cs.replace.intellij.utils.{ModuleUtils, ReplChangesObserver}
 //import fi.aalto.cs.replace.ui.ReplBannerPanel
 import org.jetbrains.plugins.scala.console.ScalaLanguageConsole
 import org.jetbrains.plugins.scala.console.replace.ScalaExecutor
-import org.jetbrains.plugins.scala.console.ScalaConsoleInfo
-import scala.collection.mutable
-import java.awt.AWTEvent
-import java.awt.BorderLayout
-import java.awt.Component
-import java.awt.Toolkit
-import javax.swing.SwingUtilities
+import scala.collection.mutable.*
+
 
 class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
 
@@ -62,7 +57,7 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   private val maxLines: Int = 1
   private var inspectEnabled: Boolean = true
 
-  // Needs a better way to check if the user input was valid or not
+  // Does not cover all error cases, needs a better way to check if the user input was valid or not
   private def isError: Boolean =
     val pattern = """^\d+\s(erro(r|rs) found)""".r
     val patternMatches: Boolean = pattern matches(output)
@@ -76,48 +71,47 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
       && !isError
 
   override def print(text: String, contentType: ConsoleViewContentType): Unit =
-    if inspectEnabled then
+    if inspectEnabled && isO1Library then
       val latestCommand = getHistory.substring(pastHistory.length)
       pastHistory = getHistory
-      if isO1Library then
-        if latestCommand.nonEmpty then
-          output = ""
-          input = ""
-          inputBuffer = Array[String]()
-          outputBuffer = Array[String]()
-          println(Console.YELLOW + "Latest command: " + latestCommand)
-          inputBuffer = latestCommand.trim.split("\n")
+      if latestCommand.nonEmpty then
+        output = ""
+        input = ""
+        inputBuffer = Array[String]()
+        outputBuffer = Array[String]()
+        println(Console.YELLOW + "Latest command: " + latestCommand)
+        inputBuffer = latestCommand.trim.split("\n")
+        if inputBuffer.length <= maxLines then
+          readingOutput = true
+          input = inputBuffer.head
 
-          if inputBuffer.length == maxLines then
-            readingOutput = true
-            input = inputBuffer.head
+      if readingOutput then
+        if text.trim == scalaPromptText then
+          readingOutput = false
+          outputBuffer = latestOutput.trim.split("\n")
+          if outputBuffer.length > 0 then
+            output = outputBuffer.last
+          latestOutput = ""
+        else
+          latestOutput += text
 
-        if readingOutput then
-          if text.trim == scalaPromptText then
-            readingOutput = false
-            outputBuffer = latestOutput.trim.split("\n")
-            if outputBuffer.length > 0 then
-              output = outputBuffer.last
-            latestOutput = ""
-          else
-            latestOutput += text
+      if shouldInspectCode() then
+        // For testing purposes
+        println(Console.MAGENTA + "RAN INSPECTLINE, output: " + output)
+        println(Console.MAGENTA + "input: " + input)
+        // Run the code inspection object from O1Library.util
+        ScalaExecutor.runLine(this, s"TreeParser.inspectLine({${input}},\"\"\"${input.replace("\"", """\"""")}\"\"\", \"\"\"${output}\"\"\")")
+        inspectingLines = true
+        inspectPromptsToSkip = maxLines
 
-        if shouldInspectCode() then
-          println(Console.MAGENTA + "RAN INSPECTLINE, output: " + output)
-          println(Console.MAGENTA + "input: " + input)
-          // Run the code inspection object from O1Library.util
-          ScalaExecutor.runLine(this, s"TreeParser.inspectLine({${input}},\"\"\"${input.replace("\"", """\"""")}\"\"\", \"\"\"${output}\"\"\")")
-          inspectingLines = true
-          inspectPromptsToSkip = maxLines
-
-          inputBuffer = Array[String]()
-          outputBuffer = Array[String]()
-          input = ""
-          output = ""
+        inputBuffer = Array[String]()
+        outputBuffer = Array[String]()
+        input = ""
+        output = ""
 
     var updatedText = text
 
-    if inspectEnabled then
+    if inspectEnabled && isO1Library then
       if inspectingLines && (text.trim() == scalaPromptText) && inspectPromptsToSkip > 0 then
         updatedText = getAndHidePropmt(text)
         inspectPromptsToSkip -= 1

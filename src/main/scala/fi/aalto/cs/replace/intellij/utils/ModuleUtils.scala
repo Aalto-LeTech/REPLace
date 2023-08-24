@@ -60,7 +60,6 @@ object ModuleUtils:
       case _ => getAndReplaceText("ui.repl.console.welcome.autoImport.multiple.message", imports.mkString(", "))
 
   def getAndHidePropmt(@NotNull originalText: String): String =
-
       getAndReplaceText("ui,repl.console.scala.repl.replacePrompt", originalText)
 
 

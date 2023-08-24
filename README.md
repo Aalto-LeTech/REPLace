@@ -12,22 +12,6 @@ the [sbt-idea-plugin](https://github.com/JetBrains/sbt-idea-plugin) readme
 ## Quick Start
 
 - Open the `build.sbt` file in IntelliJ IDEA as a project
-- To run your plugin, run or debug the `myAwesomeFramework` run configuration
+- To run the plugin, run `runIDE` from sbt -> replace -> replace(root) -> sbt tasks -> runIDE
 
-## Example build features
 
-- `intellijBuild` key in build.sbt contains version of the dependency on IDEA, you can change it.
-
-- `intellijPlugins` key in build.sbt contains a dependency on the "Properties" IJ plugin
-
-- there's an external library dependency that will be packaged into your plugin distribution
-
-- Don't forget to replace the plugin name in build.sbt. You also need to change name in resources/META-INF/plugin.xml.
-
-## Example plugin components
-
-- `PopupDialogAction` creates an action under the "Tools" menu
-- `SimpleCompletionContributor` adds the "HELLO" completion item to the values of the properties files
-- `FileOpenedListener` shows a popup when a file is opened in the editor
-- `ApplicationHelloService` and `ProjectHelloService` show examples of IJ platform service components
-- `MyToolWindowFactory` creates a new ToolWindow at the bottom of the window
