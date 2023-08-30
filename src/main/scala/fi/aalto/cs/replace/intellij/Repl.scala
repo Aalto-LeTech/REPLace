@@ -1,17 +1,17 @@
 package fi.aalto.cs.replace.intellij
 
 // import com.intellij.execution.process.ProcessHandler
-import com.intellij.execution.ui.{ConsoleViewContentType, ObservableConsoleView}
+import com.intellij.execution.ui.ConsoleViewContentType
 // import com.intellij.openapi.Disposable
-import com.intellij.openapi.module.{Module, ModuleUtilCore}
-import fi.aalto.cs.replace.intellij.utils.ModuleUtils.getAndHidePropmt
+import com.intellij.openapi.module.Module
+import fi.aalto.cs.replace.intellij.utils.ModuleUtils.getAndHidePrompt
 //import fi.aalto.cs.replace.intellij.services.PluginSettings
+import fi.aalto.cs.replace.intellij.utils.ModuleUtils
 import fi.aalto.cs.replace.intellij.utils.ModuleUtils.{getInitialReplCommands, getUpdatedText}
-import fi.aalto.cs.replace.intellij.utils.{ModuleUtils, ReplChangesObserver}
 //import fi.aalto.cs.replace.ui.ReplBannerPanel
 import org.jetbrains.plugins.scala.console.ScalaLanguageConsole
 import org.jetbrains.plugins.scala.console.replace.ScalaExecutor
-import scala.collection.mutable.*
+import scala.util.matching.Regex
 
 
 class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
@@ -55,13 +55,17 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   private var inspectPromptsToSkip: Int = 0
   // Explain (at least for now) code only if the input is one line
   private val maxLines: Int = 1
-  private var inspectEnabled: Boolean = true
+  private val inspectEnabled: Boolean = true
 
-  // Does not cover all error cases, needs a better way to check if the user input was valid or not
+  // Not pretty and definitely not good, need a better way to check whether the user input was valid or not
   private def isError: Boolean =
-    val pattern = """^\d+\s(erro(r|rs) found)""".r
-    val patternMatches: Boolean = pattern matches(output)
-    patternMatches | output.contains("longer explanation available when compiling with `-explain`")
+    val pattern: Regex = """\d+\s(erro(r|rs) found)""".r
+    val patternMatches: Option[String] = pattern.findFirstIn(output)
+    println("pattern matches: " + patternMatches)
+    patternMatches.isDefined
+      | output.contains("longer explanation available when compiling with `-explain`")
+      | output.contains("Error: --------------------------------------------------------")
+      | output.contains("... 32 elided")
 
   private def shouldInspectCode(): Boolean =
     isO1Library && isScala3REPL
@@ -71,6 +75,7 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
       && !isError
 
   override def print(text: String, contentType: ConsoleViewContentType): Unit =
+    //println(Console.GREEN + contentType + ": " + text)
     if inspectEnabled && isO1Library then
       val latestCommand = getHistory.substring(pastHistory.length)
       pastHistory = getHistory
@@ -78,7 +83,6 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
         output = ""
         input = ""
         inputBuffer = Array[String]()
-        outputBuffer = Array[String]()
         println(Console.YELLOW + "Latest command: " + latestCommand)
         inputBuffer = latestCommand.trim.split("\n")
         if inputBuffer.length <= maxLines then
@@ -88,24 +92,23 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
       if readingOutput then
         if text.trim == scalaPromptText then
           readingOutput = false
-          outputBuffer = latestOutput.trim.split("\n")
-          if outputBuffer.length > 0 then
-            output = outputBuffer.last
+//          outputBuffer = latestOutput.trim.split("\n")
+//          if outputBuffer.length > 0 then
+//            output = outputBuffer.last
+          output = latestOutput
           latestOutput = ""
         else
           latestOutput += text
 
-      if shouldInspectCode() then
+      if shouldInspectCode() && (contentType != ConsoleViewContentType.ERROR_OUTPUT) then
         // For testing purposes
         println(Console.MAGENTA + "RAN INSPECTLINE, output: " + output)
         println(Console.MAGENTA + "input: " + input)
         // Run the code inspection object from O1Library.util
-        ScalaExecutor.runLine(this, s"TreeParser.inspectLine({${input}},\"\"\"${input.replace("\"", """\"""")}\"\"\", \"\"\"${output}\"\"\")")
+        ScalaExecutor.runLine(this, s"TreeParser.inspectLine({$input},\"\"\"${input.replace("\"", """\"""")}\"\"\", \"\"\"$output\"\"\")")
         inspectingLines = true
         inspectPromptsToSkip = maxLines
-
         inputBuffer = Array[String]()
-        outputBuffer = Array[String]()
         input = ""
         output = ""
 
@@ -113,7 +116,7 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
 
     if inspectEnabled && isO1Library then
       if inspectingLines && (text.trim() == scalaPromptText) && inspectPromptsToSkip > 0 then
-        updatedText = getAndHidePropmt(text)
+        updatedText = getAndHidePrompt(text)
         inspectPromptsToSkip -= 1
         if inspectPromptsToSkip == 0 then
           inspectingLines = false
@@ -134,7 +137,6 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
         remainingPromptsToSkip = commands.length
         commands.foreach(cmd =>
           ScalaExecutor.runLine(this, cmd))
-        // ScalaExecutor.runLine(this, s"TreeParser.inspect({val x = 1 + 2 + 3\nval y = 1 * 2 * 3})")
       initialReplWelcomeMessageHasBeenReplaced = true
 
     // When auto-executing commands in Scala 3 using ScalaExecutor, the prompt is printed
