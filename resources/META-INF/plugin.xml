@@ -20,7 +20,6 @@
                 overrides="true"
                 icon="/icons/repl.svg">
             <keyboard-shortcut first-keystroke="control shift D" keymap="$default"/>
-            <add-to-group group-id="ToolsMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenuSettingsGroup"/>
         </action>
         <action id="ScalaConsole.Execute"
