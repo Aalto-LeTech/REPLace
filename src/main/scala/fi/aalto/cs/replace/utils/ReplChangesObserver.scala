@@ -1,18 +1,15 @@
-package fi.aalto.cs.replace.intellij.utils
+package fi.aalto.cs.replace.utils
 
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.EditorFactory
-import com.intellij.openapi.editor.event.DocumentEvent
-import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.openapi.editor.event.{DocumentEvent, DocumentListener}
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.vfs.VirtualFile
-import java.util.Collections
+
 import java.util
-import org.jetbrains.annotations.NotNull
+import java.util.Collections
 
 object ReplChangesObserver:
   private var documentListenerInstalled = false

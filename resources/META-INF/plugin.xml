@@ -1,43 +1,30 @@
 <idea-plugin>
     <id>fi.aalto.cs.replace</id>
-    <name>REPL-ace</name>
-    <version>0.0.1-SNAPSHOT</version>
-    <vendor>LeTech Group at Aalto University</vendor>
+    <name>REPLace</name>
+    <version>1.0.0-beta2</version>
+    <vendor>LeTech</vendor>
 
     <description>A new plugin for IntelliJ platform written in Scala and built with SBT</description>
 
-    <idea-version since-build="231.0"/>
+    <idea-version since-build="242"/>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.properties</depends>
     <depends>org.intellij.scala</depends>
 
-    <resource-bundle>messages.SamplePluginBundle</resource-bundle>
+    <resource-bundle>messages.resources</resource-bundle>
 
     <actions>
-        <action id="org.jetbrains.scala.samples.actions.PopupDialogAction"
-                class="org.jetbrains.scala.samples.actions.PopupDialogAction">
-            <add-to-group group-id="ToolsMenu" anchor="first"/>
-        </action>
         <action id="Scala.RunConsole"
-                class="fi.aalto.cs.replace.intellij.actions.ReplAction"
-                overrides="true">
+                class="fi.aalto.cs.replace.actions.ReplAction"
+                overrides="true"
+                icon="/icons/repl.svg">
             <keyboard-shortcut first-keystroke="control shift D" keymap="$default"/>
+            <add-to-group group-id="ProjectViewPopupMenuSettingsGroup"/>
         </action>
         <action id="ScalaConsole.Execute"
                 class="org.jetbrains.plugins.scala.console.replace.ConsoleExecuteAction"
                 overrides="true">
         </action>
     </actions>
-
-    <applicationListeners>
-        <listener class="org.jetbrains.scala.samples.listeners.FileOpenedListener" topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
-    </applicationListeners>
-
-    <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup displayType="BALLOON" id="My Plugin Notification" />
-        <toolWindow factoryClass="org.jetbrains.scala.samples.ui.MyToolWindowFactory" id="MyToolWindow" anchor="bottom"/>
-        <completion.contributor implementationClass="org.jetbrains.scala.samples.completion.SimpleCompletionContributor" language="Properties"/>
-    </extensions>
-
 </idea-plugin>
