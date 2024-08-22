@@ -62,8 +62,10 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
     // We should perform our multiline fixing only for our custom REPL that is running Scala 3.
     // Non-A+ REPLs or those that host Scala 2 should not be modified.
     // Additionally, if the text has no newlines, we don't need to do the bracketed paste.
-    if !console.isInstanceOf[Repl] || !console.asInstanceOf[Repl].isScala3REPL ||
-      !text.exists(c => c == '\n' || c == '\r')
+    if !console.isInstanceOf[Repl]
+      || !console.asInstanceOf[Repl].isScala3REPL
+      || !console.asInstanceOf[Repl].isScalaVersionLessThan3_4_2 // Scala 3.4.2 breaks the bracketed paste
+      || !text.exists(c => c == '\n' || c == '\r')
     then
       super.actionPerformed(e)
       return

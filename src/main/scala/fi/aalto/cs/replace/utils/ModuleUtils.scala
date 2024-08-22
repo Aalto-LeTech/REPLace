@@ -165,7 +165,19 @@ object ModuleUtils:
       .getInstance(module)
       .orderEntries()
       .librariesOnly()
-      .satisfying(x =>
-        x.getPresentableName.contains("scala3-") || x.getPresentableName.contains("scala-sdk-3.")
-      )
+      .satisfying(x => x.getPresentableName.contains("scala-sdk-3"))
   )
+
+  def isScalaVersionLessThan(module: Module, version: String): Boolean =
+    // Versions in format "3.3.3" or "3.4"
+    def check(libraryVersion: String) = libraryVersion < version
+    nonEmpty(
+      ModuleRootManager
+        .getInstance(module)
+        .orderEntries()
+        .librariesOnly()
+        .satisfying(x =>
+          val name = x.getPresentableName
+          name.contains("scala-sdk-3") && check(name.substring(name.lastIndexOf("-") + 1))
+        )
+    )
