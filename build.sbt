@@ -5,7 +5,7 @@ lazy val REPLace =
     .in(file("."))
     .enablePlugins(SbtIdeaPlugin)
     .settings(
-      version                        := "1.0.0-beta1",
+      version                        := "1.0.0",
       scalaVersion                   := "3.3.3",
       ThisBuild / intellijPluginName := "REPLace",
       ThisBuild / intellijBuild      := "242.20224.300",
