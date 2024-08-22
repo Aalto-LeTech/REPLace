@@ -13,27 +13,28 @@ import java.util.Collections
 
 object ReplChangesObserver:
   private var documentListenerInstalled = false
-  private val disposable = Disposer.newDisposable
-  private val modifiedModules = Collections.synchronizedSet(new util.HashSet[Module])
+  private val disposable                = Disposer.newDisposable
+  private val modifiedModules           = Collections.synchronizedSet(new util.HashSet[Module])
 
-  /**
-   * Triggered when a REPL has started for a particular module, indicating that all pending code changes
-   * have been applied in the REPL as well.
-   *
-   * @param module The module for which the REPL is being opened.
-   */
+  /** Triggered when a REPL has started for a particular module, indicating that all pending code
+    * changes have been applied in the REPL as well.
+    *
+    * @param module
+    *   The module for which the REPL is being opened.
+    */
   def onStartedRepl(module: Module): Unit =
     if !documentListenerInstalled then
-      EditorFactory.getInstance.getEventMulticaster.addDocumentListener(new ReplChangesObserver.ChangesListener(module.getProject), disposable)
+      EditorFactory.getInstance.getEventMulticaster
+        .addDocumentListener(new ReplChangesObserver.ChangesListener(module.getProject), disposable)
       documentListenerInstalled = true
     modifiedModules.remove(module)
 
-  /**
-   * Triggered when a module undergoes some code change, which indicates that existing REPLs should
-   * show a warning message that they're running an outdated version of the module.
-   *
-   * @param module The module which has been changed.
-   */
+  /** Triggered when a module undergoes some code change, which indicates that existing REPLs should
+    * show a warning message that they're running an outdated version of the module.
+    *
+    * @param module
+    *   The module which has been changed.
+    */
   def onModuleChanged(module: Module): Unit =
     modifiedModules.add(module)
 

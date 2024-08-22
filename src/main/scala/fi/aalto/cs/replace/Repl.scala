@@ -30,8 +30,7 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   add(banner, BorderLayout.NORTH)
 
   // Do not show the warning banner for non-A+ courses
-  private val isCoursesProject =
-    true // PluginSettings.getInstance.getCourseProject(module.getProject) != null
+  private val isCoursesProject = Repl.isCoursesProject(module.getProject)
   if isCoursesProject then
     // creating a new REPL resets the "module changed" state
     ReplChangesObserver.onStartedRepl(module)
@@ -91,3 +90,9 @@ object Repl:
       try source.mkString
       finally source.close
     else ""
+
+  private def isCoursesProject(project: Project): Boolean =
+    val basePath = project.getBasePath
+    if basePath == null then return false
+    val file = Path.of(basePath, ".idea", "aplus_project.xml").toFile
+    file.exists
