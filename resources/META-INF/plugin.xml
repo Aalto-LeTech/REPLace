@@ -4,7 +4,10 @@
     <version>1.0.0-beta2</version>
     <vendor>LeTech</vendor>
 
-    <description>A new plugin for IntelliJ platform written in Scala and built with SBT</description>
+    <description>
+        REPLace replaces the default IntelliJ Scala REPL, introducing additional features and bug fixes to enhance the
+        REPL experience for Scala courses.
+    </description>
 
     <idea-version since-build="242"/>
 
