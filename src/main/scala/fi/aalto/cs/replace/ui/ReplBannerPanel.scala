@@ -5,6 +5,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.panels.OpaquePanel
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.JBUI.CurrentTheme.NotificationError
 import fi.aalto.cs.replace.services.PluginSettings
 import fi.aalto.cs.replace.utils.MyBundle.message
 
@@ -45,16 +46,17 @@ class ReplBannerPanel(private val project: Project) extends JPanel(BorderLayout(
 
   setBorder(
     BorderFactory.createCompoundBorder(
-      BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor.border()),
+      BorderFactory.createMatteBorder(0, 0, 1, 0, NotificationError.borderColor()),
       BorderFactory.createEmptyBorder(0, 5, 0, 5)
     )
   )
 
   override def setVisible(isVisible: Boolean): Unit =
     if isVisible then
-      val bgColor = JBColor(Color(200, 0, 0), Color(100, 0, 0))
+      val bgColor = NotificationError.backgroundColor()
       containerPanel.setBackground(bgColor)
       setBackground(bgColor)
+      setForeground(NotificationError.foregroundColor())
     end if
     val neverShow = PluginSettings(project).neverShowBanner
     super.setVisible(isVisible && !isPermanentlyHidden && !neverShow)
