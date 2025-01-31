@@ -146,5 +146,5 @@ class ReplAction extends RunConsoleAction:
       .getInstance(module)
       .orderEntries()
       .librariesOnly()
-      .satisfying(_.getPresentableName.startsWith("scala-sdk-"))
+      .satisfying(_.getPresentableName.contains("scala-sdk-"))
   )
