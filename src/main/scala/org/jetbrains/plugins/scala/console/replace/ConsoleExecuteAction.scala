@@ -18,7 +18,11 @@ import org.jetbrains.plugins.scala.extensions.inWriteAction
 class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
   // We achieve proper multiline support by surrounding the REPL commands by special
   // ANSI sequences indicating "bracketed paste". We exploit the fact that Scala 3 REPL
-  // uses the JLine 3 library, which explicitly supports the bracketed paste sequences.
+  // uses the JLine 3 library, which explicitly supports the bracketed paste sequences
+
+  // However, Scala 3.4.2 updated the JLine library to a version that disabled the bracketed paste
+  // for dumb terminals.
+  // As a workaround, we remove empty lines from the input to avoid the issue.
 
   // "Bracketed paste" means that newlines encountered in the string surrounded by paste markers
   // should not be treated as end-of-statement markers, but rather mere parts of the statement.
@@ -64,7 +68,6 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
     // Additionally, if the text has no newlines, we don't need to do the bracketed paste.
     if !console.isInstanceOf[Repl]
       || !console.asInstanceOf[Repl].isScala3REPL
-      || !console.asInstanceOf[Repl].isScalaVersionLessThan3_4_2 // Scala 3.4.2 breaks the bracketed paste
       || !text.exists(c => c == '\n' || c == '\r')
     then
       super.actionPerformed(e)
@@ -90,10 +93,16 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
     // pick it up properly; it seems to be yet another quirk of JLine and DumbTerminal
     val outputStream = processHandler.getProcessInput
     if outputStream != null then
-      outputStream.write(BeginPaste)
-      outputStream.flush()
-      outputStream.write(padTextToBlockLength(text) ++ EndPaste ++ "\n".getBytes)
-      outputStream.flush()
+      if console.asInstanceOf[Repl].isScalaVersionLessThan3_4_2 then
+        outputStream.write(BeginPaste)
+        outputStream.flush()
+        outputStream.write(padTextToBlockLength(text) ++ EndPaste ++ "\n".getBytes)
+        outputStream.flush()
+      else
+        // Empty lines end the statement prematurely, so we remove them
+        val withoutEmptyLines = text.split("\n").filter(_.nonEmpty).mkString("\n")
+        outputStream.write((withoutEmptyLines + "\n").getBytes)
+        outputStream.flush()
 
     console.textSent(text)
 
