@@ -9,6 +9,7 @@
 package org.jetbrains.plugins.scala.console.replace
 
 import com.intellij.openapi.actionSystem.{ActionUpdateThread, AnActionEvent, CommonDataKeys}
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.util.TextRange
 import fi.aalto.cs.replace.Repl
 import org.jetbrains.plugins.scala.console.ScalaConsoleInfo
@@ -74,20 +75,21 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
       return
 
     // Process input and add to history
-    inWriteAction {
-      val range: TextRange = new TextRange(0, document.getTextLength)
-      editor.getSelectionModel.setSelection(range.getStartOffset, range.getEndOffset)
-      // note: it uses `range` instead ot just editor `text` because under the hood it splits actual editor content
-      // according to the highlighter attributes and passes the correct ContentType to the history console
-      console.addToHistory(range, console.getConsoleEditor, true)
-      // without this line there will be a slight blinking of user input code SCL-16655
-      // see com.intellij.execution.impl.ConsoleViewImpl.print
-      console.flushDeferredText()
-      historyController.addToHistory(text)
+    ApplicationManager.getApplication.runWriteAction(new Runnable():
+      def run(): Unit =
+        val range: TextRange = new TextRange(0, document.getTextLength)
+        editor.getSelectionModel.setSelection(range.getStartOffset, range.getEndOffset)
+        // note: it uses `range` instead ot just editor `text` because under the hood it splits actual editor content
+        // according to the highlighter attributes and passes the correct ContentType to the history console
+        console.addToHistory(range, console.getConsoleEditor, true)
+        // without this line there will be a slight blinking of user input code SCL-16655
+        // see com.intellij.execution.impl.ConsoleViewImpl.print
+        console.flushDeferredText()
+        historyController.addToHistory(text)
 
-      editor.getCaretModel.moveToOffset(0)
-      editor.getDocument.setText("")
-    }
+        editor.getCaretModel.moveToOffset(0)
+        editor.getDocument.setText("")
+    )
 
     // the "start paste" sequence has to be in a separate write call, otherwise JLine won't
     // pick it up properly; it seems to be yet another quirk of JLine and DumbTerminal
