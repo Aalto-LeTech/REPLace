@@ -6,10 +6,6 @@ plugins {
 group = "fi.aalto.cs.replace"
 version = "1.0.0"
 
-scala {
-    scalaVersion = "3.7.1"
-}
-
 repositories {
     mavenCentral()
 
@@ -25,6 +21,8 @@ dependencies {
         bundledPlugin("com.intellij.properties")
         compatiblePlugin("org.intellij.scala")
     }
+
+    compileOnly("org.scala-lang:scala3-library_3:3.7.1")
 }
 intellijPlatform {
     pluginConfiguration {
