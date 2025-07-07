@@ -5,7 +5,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.keymap.KeymapManager
 import com.intellij.openapi.module.{Module, ModuleUtilCore}
 import com.intellij.openapi.project.{Project, ProjectUtil}
-import com.intellij.openapi.roots.{ModuleRootManager, OrderEnumerator}
+import com.intellij.openapi.roots.{ModuleRootManager, OrderEnumerator, OrderEntry, RootPolicy}
 import com.intellij.openapi.util.io.FileUtilRt
 import fi.aalto.cs.replace.Repl
 import org.apache.commons.io.FileUtils
@@ -38,14 +38,6 @@ object ModuleUtils:
   ): Option[Module] =
     Option(CommonDataKeys.VIRTUAL_FILE.getData(dataContext))
       .flatMap(file => Option(ModuleUtilCore.findModuleForFile(file, project)))
-
-  def nonEmpty(enumerator: OrderEnumerator): Boolean =
-    var nonEmpty = false
-    enumerator.forEach { _ =>
-      nonEmpty = true
-      false
-    }
-    nonEmpty
 
   // O1_SPECIFIC
   private def naiveValidate(@NotNull command: String): Boolean =
@@ -160,24 +152,38 @@ object ModuleUtils:
   private def isTopLevelModule(module: Module): Boolean =
     module.getName.equals(module.getProject.getName)
 
-  def isScala3Module(module: Module): Boolean = nonEmpty(
-    ModuleRootManager
-      .getInstance(module)
-      .orderEntries()
-      .librariesOnly()
-      .satisfying(x => x.getPresentableName.contains("scala-sdk-3"))
-  )
+  def hasScalaSdkLibrary(@NotNull module: Module): Boolean =
+    module.hasLibrary(_.getPresentableName.contains("scala-sdk-"))
+
+  def isScala3Module(module: Module): Boolean =
+    module.hasLibrary(library => library.getPresentableName.contains("scala-sdk-3"))
 
   def isScalaVersionLessThan(module: Module, version: String): Boolean =
-    // Versions in format "3.3.3" or "3.4"
-    def check(libraryVersion: String) = libraryVersion < version
-    nonEmpty(
+    module.hasLibrary(library => getScalaVersion(library.getPresentableName).exists(_.lessThan(version)))
+
+  extension (module: Module)
+    private def hasLibrary(predicate: OrderEntry => Boolean): Boolean =
       ModuleRootManager
         .getInstance(module)
         .orderEntries()
         .librariesOnly()
-        .satisfying(x =>
-          val name = x.getPresentableName
-          name.contains("scala-sdk-3") && check(name.substring(name.lastIndexOf("-") + 1))
-        )
-    )
+        .exists(predicate)
+
+  private def getScalaVersion(libraryName: String): Option[Version] =
+    if libraryName.contains("scala-sdk-") then
+      Some(libraryName.split('-').last)
+    else
+      None
+
+  private class Version(private val nums: Seq[Int]):
+    def lessThan(that: Version): Boolean = Ordering.Implicits.seqOrdering.lt(this.nums, that.nums)
+  end Version
+
+  private given Conversion[String, Version] = (s: String) => Version(s.split('.').map(_.toIntOption.getOrElse(0)))
+
+  private class ExistsRootPolicy(p: OrderEntry => Boolean) extends RootPolicy[Boolean]:
+    override def visitOrderEntry(orderEntry: OrderEntry, value: Boolean): Boolean = value || p(orderEntry)
+  end ExistsRootPolicy
+
+  extension(orderEnumerator: OrderEnumerator)
+    private def exists(p: OrderEntry => Boolean): Boolean = orderEnumerator.process(ExistsRootPolicy(p), false)

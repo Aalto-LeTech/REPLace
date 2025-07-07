@@ -133,18 +133,10 @@ class ReplAction extends RunConsoleAction:
       @NotNull project: Project,
       @NotNull context: DataContext
   ): Option[Module] =
-    ModuleUtils.getModuleOfEditorFile(project, context).filter(hasScalaSdkLibrary)
+    ModuleUtils.getModuleOfEditorFile(project, context).filter(ModuleUtils.hasScalaSdkLibrary)
 
   private def getScalaModuleOfSelectedFile(
       @NotNull project: Project,
       @NotNull context: DataContext
   ): Option[Module] =
-    ModuleUtils.getModuleOfSelectedFile(project, context).filter(hasScalaSdkLibrary)
-
-  private def hasScalaSdkLibrary(@NotNull module: Module): Boolean = ModuleUtils.nonEmpty(
-    ModuleRootManager
-      .getInstance(module)
-      .orderEntries()
-      .librariesOnly()
-      .satisfying(_.getPresentableName.startsWith("scala-sdk-"))
-  )
+    ModuleUtils.getModuleOfSelectedFile(project, context).filter(ModuleUtils.hasScalaSdkLibrary)

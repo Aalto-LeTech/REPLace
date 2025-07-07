@@ -1,3 +1,4 @@
-**/target
 .idea
-.bsp
+.gradle
+.intellijPlatform
+build
