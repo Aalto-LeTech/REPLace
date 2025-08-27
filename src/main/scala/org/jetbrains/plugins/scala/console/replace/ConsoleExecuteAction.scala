@@ -17,41 +17,6 @@ import org.jetbrains.plugins.scala.console.actions.ScalaConsoleExecuteAction
 import org.jetbrains.plugins.scala.extensions.inWriteAction
 
 class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
-  // We achieve proper multiline support by surrounding the REPL commands by special
-  // ANSI sequences indicating "bracketed paste". We exploit the fact that Scala 3 REPL
-  // uses the JLine 3 library, which explicitly supports the bracketed paste sequences
-
-  // However, Scala 3.4.2 updated the JLine library to a version that disabled the bracketed paste
-  // for dumb terminals.
-  // As a workaround, we remove empty lines from the input to avoid the issue.
-
-  // "Bracketed paste" means that newlines encountered in the string surrounded by paste markers
-  // should not be treated as end-of-statement markers, but rather mere parts of the statement.
-  // See https://cirw.in/blog/bracketed-paste for details.
-  private val BeginPaste = "\u001b[200~".getBytes
-  private val EndPaste   = "\u001b[201~".getBytes
-
-  // This is a "feature" of JLine - it has support for various terminals, but for IntelliJ console
-  // there isn't one, and therefore JLine defaults to "DumbTerminal", which is a terminal with no
-  // special features.
-  // When inserting bracketed paste sequences, the JLine library scans the input for the
-  // "bracketed paste end" sequence by reading from the terminal in 64-byte chunks.
-  // JLine erroneously blocks until the whole chunk is read; therefore, we need to pad the data
-  // to 64 characters to appease JLine.
-  // (This only occurs for DumbTerminals)
-  private val JLineBufferLength = 64
-
-  private def padTextToBlockLength(text: String): Array[Byte] =
-    var userInputBytes: Array[Byte] = text.getBytes
-    val contentLength               = userInputBytes.length + EndPaste.length
-
-    // We pad the input with some "neutral" character - a one that will have no side effects
-    // even if we add fifty of these. Space seems to be a good candidate.
-    if contentLength % JLineBufferLength != 0 then
-      userInputBytes = userInputBytes ++
-        Array.fill[Byte](JLineBufferLength - (contentLength % JLineBufferLength))(' ')
-
-    userInputBytes
 
   override def actionPerformed(e: AnActionEvent): Unit =
     val editor = e.getData(CommonDataKeys.EDITOR)
@@ -65,8 +30,8 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
     val text     = document.getText
 
     // We should perform our multiline fixing only for our custom REPL that is running Scala 3.
-    // Non-A+ REPLs or those that host Scala 2 should not be modified.
-    // Additionally, if the text has no newlines, we don't need to do the bracketed paste.
+    // REPLs that host Scala 2 should not be modified.
+    // Additionally, if the text has no newlines, we don't need to modify it.
     if !console.isInstanceOf[Repl]
       || !console.asInstanceOf[Repl].isScala3REPL
       || !text.exists(c => c == '\n' || c == '\r')
@@ -91,20 +56,12 @@ class ConsoleExecuteAction extends ScalaConsoleExecuteAction:
         editor.getDocument.setText("")
     )
 
-    // the "start paste" sequence has to be in a separate write call, otherwise JLine won't
-    // pick it up properly; it seems to be yet another quirk of JLine and DumbTerminal
     val outputStream = processHandler.getProcessInput
     if outputStream != null then
-      if console.asInstanceOf[Repl].isScalaVersionLessThan3_4_2 then
-        outputStream.write(BeginPaste)
-        outputStream.flush()
-        outputStream.write(padTextToBlockLength(text) ++ EndPaste ++ "\n".getBytes)
-        outputStream.flush()
-      else
-        // Empty lines end the statement prematurely, so we remove them
-        val withoutEmptyLines = text.split("\n").filter(_.nonEmpty).mkString("\n")
-        outputStream.write((withoutEmptyLines + "\n").getBytes)
-        outputStream.flush()
+      // Empty lines end the statement prematurely, so we remove them
+      val withoutEmptyLines = text.split("\n").filter(_.nonEmpty).mkString("\n")
+      outputStream.write((withoutEmptyLines + "\n").getBytes)
+      outputStream.flush()
 
     console.textSent(text)
 

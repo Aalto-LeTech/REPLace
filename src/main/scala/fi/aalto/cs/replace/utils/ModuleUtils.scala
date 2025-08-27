@@ -58,9 +58,6 @@ object ModuleUtils:
           imports.mkString(", ")
         )
 
-  def getAndHidePrompt(@NotNull originalText: String): String =
-    MyBundle.message("ui.repl.console.scala.repl.replacePrompt", originalText)
-
   def getUpdatedText(
       @NotNull module: Module,
       @NotNull commands: List[String],
@@ -158,9 +155,6 @@ object ModuleUtils:
   def isScala3Module(module: Module): Boolean =
     module.hasLibrary(library => library.getPresentableName.contains("scala-sdk-3"))
 
-  def isScalaVersionLessThan(module: Module, version: String): Boolean =
-    module.hasLibrary(library => getScalaVersion(library.getPresentableName).exists(_.lessThan(version)))
-
   extension (module: Module)
     private def hasLibrary(predicate: OrderEntry => Boolean): Boolean =
       ModuleRootManager
@@ -168,18 +162,6 @@ object ModuleUtils:
         .orderEntries()
         .librariesOnly()
         .exists(predicate)
-
-  private def getScalaVersion(libraryName: String): Option[Version] =
-    if libraryName.contains("scala-sdk-") then
-      Some(libraryName.split('-').last)
-    else
-      None
-
-  private class Version(private val nums: Seq[Int]):
-    def lessThan(that: Version): Boolean = Ordering.Implicits.seqOrdering.lt(this.nums, that.nums)
-  end Version
-
-  private given Conversion[String, Version] = (s: String) => Version(s.split('.').map(_.toIntOption.getOrElse(0)))
 
   private class ExistsRootPolicy(p: OrderEntry => Boolean) extends RootPolicy[Boolean]:
     override def visitOrderEntry(orderEntry: OrderEntry, value: Boolean): Boolean = value || p(orderEntry)
