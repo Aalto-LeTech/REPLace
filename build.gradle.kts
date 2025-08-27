@@ -31,3 +31,7 @@ intellijPlatform {
         }
     }
 }
+
+tasks.withType<Jar> {
+    duplicatesStrategy = DuplicatesStrategy.WARN
+}
