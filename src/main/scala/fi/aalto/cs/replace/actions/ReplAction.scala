@@ -9,13 +9,13 @@ import com.intellij.notification.{Notification, NotificationType, Notifications}
 import com.intellij.openapi.actionSystem.{AnActionEvent, CommonDataKeys, DataContext}
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ModuleRootManager
 import fi.aalto.cs.replace.Repl
 import fi.aalto.cs.replace.utils.MyBundle.*
 import fi.aalto.cs.replace.utils.ModuleUtils
 import org.jetbrains.annotations.NotNull
 import org.jetbrains.plugins.scala.console.actions.RunConsoleAction
 import org.jetbrains.plugins.scala.console.configuration.ScalaConsoleRunConfiguration
+import org.jetbrains.plugins.scala.extensions.invokeAndWait
 import org.jetbrains.plugins.scala.project.ProjectExt
 
 /** Custom class that adjusts Scala Plugin's own RunConsoleAction with A+ requirements.
@@ -95,7 +95,7 @@ class ReplAction extends RunConsoleAction:
       override def clone(): ModuleBasedConfiguration[? <: RunConfigurationModule, ?] = super.clone()
 
       private class MyBuilder(module: Module) extends TextConsoleBuilderImpl(module.getProject):
-        override def createConsole(): ConsoleView = new Repl(module)
+        override def createConsole(): ConsoleView = invokeAndWait(new Repl(module))
 
   private def getReplAdditionalArguments(@NotNull project: Project): String =
     Repl.additionalArguments(project)

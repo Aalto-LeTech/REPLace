@@ -1,10 +1,10 @@
 plugins {
-    id("org.jetbrains.intellij.platform") version "2.6.0"
+    id("org.jetbrains.intellij.platform") version "2.17.0"
     id("scala")
 }
 
 group = "fi.aalto.cs.replace"
-version = "1.2.1"
+version = "1.2.2"
 
 repositories {
     mavenCentral()
@@ -16,7 +16,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        intellijIdeaCommunity("2025.2")
+        intellijIdeaUltimate("2026.1.3")
         bundledPlugin("com.intellij.java")
         bundledPlugin("com.intellij.properties")
         compatiblePlugin("org.intellij.scala")
@@ -27,7 +27,7 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "252"
+            sinceBuild = "261"
         }
     }
 }
