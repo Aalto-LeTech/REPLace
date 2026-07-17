@@ -4,10 +4,9 @@
 
 package org.jetbrains.plugins.scala.console.replace
 
-import com.intellij.openapi.application.ApplicationManager
 import fi.aalto.cs.replace.Repl
-
 import org.jetbrains.plugins.scala.console.ScalaConsoleInfo
+import org.jetbrains.plugins.scala.extensions.invokeAndWait
 
 object ScalaExecutor:
   /** Runs a single line of Scala code in the context of the provided REPL console.
@@ -22,8 +21,9 @@ object ScalaExecutor:
 
     val outputStream = processHandler.getProcessInput
     if outputStream != null then
-      outputStream.write((command + "\n").getBytes)
-      outputStream.flush()
+        outputStream.write((command + "\n").getBytes)
+        outputStream.flush()
+        Thread.sleep(200)
 
     // this must be invoked from EDT because it accesses the IntelliJ PSI
-    ApplicationManager.getApplication.invokeLater(() => console.textSent(command))
+    invokeAndWait { console.textSent(command) }
