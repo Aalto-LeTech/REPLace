@@ -2,3 +2,4 @@
 .gradle
 .intellijPlatform
 build
+.DS_Store
