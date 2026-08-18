@@ -61,3 +61,8 @@ spotless {
 tasks.withType<Jar> {
     duplicatesStrategy = DuplicatesStrategy.WARN
 }
+
+tasks.test {
+    systemProperty("replace.scalaReplTestClasspath", scalaReplTestRuntime.asPath)
+    classpath = files(sourceSets.main.get().output.resourcesDir) + classpath
+}
