@@ -53,28 +53,23 @@ object ModuleUtils:
       .flatMap(file => Option(ModuleUtilCore.findModuleForFile(file, project)))
 
   // O1_SPECIFIC
-  private def naiveValidate(command: String): Boolean =
-    command.matches("import\\so1\\.[a-z]*(\\*|\\.\\*)$")
+  private[replace] def isO1WildcardImport(command: String): Boolean =
+    command.matches("import\\s+o1(\\.[a-z]+)*\\.\\*")
 
   private def clearCommands(imports: List[String]): List[String] =
     imports
       .map(_.replace("import ", ""))
       .map(_.replace(".*", ""))
 
-  private def getCommandsText(imports: List[String]): String =
-    imports.length match
-      case 0 => ""
-      case 1 => MyBundle.message("ui.repl.console.welcome.autoImport.single.message", imports.head)
-      case _ =>
-        MyBundle.message(
-          "ui.repl.console.welcome.autoImport.multiple.message",
-          imports.mkString(", ")
-        )
+  private[replace] def getCommandsText(imports: List[String]): String =
+    if imports.isEmpty then ""
+    else MyBundle.message("ui.repl.console.welcome.autoImport.message", imports.mkString(", "))
 
   def getUpdatedText(
       module: Module,
       commands: List[String],
-      originalText: String
+      originalText: String,
+      isCoursesProject: Boolean
   ): String =
     val runConsoleShortCut     = getPrettyKeyMapString("Scala.RunConsole")
     val executeConsoleShortCut = getPrettyKeyMapString("ScalaConsole.Execute")
@@ -90,7 +85,11 @@ object ModuleUtils:
       reRunShortCut
     ) + "\n"
 
-    if isTopLevelModule(module) then
+    if !isCoursesProject then
+      // Outside an A+ course project the quick reference still helps, but nothing here has
+      // anything to do with course modules.
+      commonText + "\n" + originalText
+    else if isTopLevelModule(module) then
       MyBundle.message(
         "ui.repl.console.welcome.noModuleText",
         commonText,
@@ -98,17 +97,25 @@ object ModuleUtils:
         runConsoleShortCut
       )
     else
-      val validCommands   = commands.filter(naiveValidate)
+      val validCommands   = commands.filter(isO1WildcardImport)
       val clearedCommands = clearCommands(validCommands)
       val commandsText    = getCommandsText(clearedCommands)
 
-      MyBundle.message(
-        "ui.repl.console.welcome.fullText",
-        module.getName,
-        commandsText,
-        commonText,
-        originalText
-      )
+      formatCourseWelcome(module.getName, commandsText, commonText)
+
+  private[replace] def formatCourseWelcome(
+      moduleName: String,
+      commandsText: String,
+      commonText: String
+  ): String =
+    MyBundle.message(
+      "ui.repl.console.welcome.fullText",
+      moduleName,
+      // The auto-import summary carries its own line break so that a module without any imports
+      // collapses to a single blank line before the quick reference instead of two.
+      if commandsText.isEmpty then "" else commandsText + "\n",
+      commonText
+    )
 
   private def getPrettyKeyMapString(actionId: String): String =
     val shortCuts = KeymapManager.getInstance.getActiveKeymap
@@ -123,7 +130,7 @@ object ModuleUtils:
         .map(_.toLowerCase)
         .map(_.capitalize)
         .mkString("+")
-    else "ui.repl.console.welcome.shortcutMissing"
+    else MyBundle.message("ui.repl.console.welcome.shortcutMissing")
 
   /** Creates the initial REPL commands file if it does not exist yet, otherwise does nothing.
     */
@@ -138,18 +145,18 @@ object ModuleUtils:
     Files.exists(Paths.get(getModuleDirectory(module), Repl.initialCommandsFileName))
 
   def getInitialReplCommands(module: Module): List[String] =
-    val dir = ProjectUtil.guessModuleDir(module)
-    if dir == null then return List()
-    // The module dir may not be mappable to a real path (e.g. an in-memory filesystem),
-    // in which case there is no commands file to read.
-    val commandsFile =
-      try dir.toNioPath.resolve(Repl.initialCommandsFileName).toFile
-      catch case _: UnsupportedOperationException => return List()
-    if commandsFile.exists && commandsFile.canRead then
-      val source = Source.fromFile(commandsFile)
-      try source.getLines().toList
-      finally source.close
-    else List()
+    val commandsFile = Option(ProjectUtil.guessModuleDir(module)).flatMap { dir =>
+      // The module dir may not be mappable to a real path (e.g. an in-memory filesystem),
+      // in which case there is no commands file to read.
+      try Some(dir.toNioPath.resolve(Repl.initialCommandsFileName).toFile)
+      catch case _: UnsupportedOperationException => None
+    }
+    commandsFile.filter(file => file.exists && file.canRead) match
+      case None => List()
+      case Some(file) =>
+        val source = Source.fromFile(file)
+        try source.getLines().toList
+        finally source.close
 
   private def isTopLevelModule(module: Module): Boolean =
     module.getName.equals(module.getProject.getName)
