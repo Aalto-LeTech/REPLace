@@ -3,18 +3,16 @@ package fi.aalto.cs.replace
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
+import fi.aalto.cs.replace.services.ReplChangesService
+import fi.aalto.cs.replace.utils.ModuleUtils
 import fi.aalto.cs.replace.utils.ModuleUtils.{getInitialReplCommands, getUpdatedText}
-import fi.aalto.cs.replace.utils.{ModuleUtils, ReplChangesObserver}
 import fi.aalto.cs.replace.ui.ReplBannerPanel
 import org.jetbrains.plugins.scala.console.ScalaLanguageConsole
 import org.jetbrains.plugins.scala.console.replace.ScalaExecutor
 
-import java.awt.AWTEvent
 import java.awt.BorderLayout
-import java.awt.Component
-import java.awt.Toolkit
+import java.awt.event.{FocusAdapter, FocusEvent}
 import java.nio.file.Path
-import javax.swing.SwingUtilities
 import scala.io.Source
 
 class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
@@ -30,17 +28,20 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   add(banner, BorderLayout.NORTH)
 
   // Do not show the warning banner for non-A+ courses
-  private val isCoursesProject = Repl.isCoursesProject(module.getProject)
-  if isCoursesProject then
+  private val changesService: Option[ReplChangesService] =
+    Option.when(Repl.isCoursesProject(module.getProject))(ReplChangesService(module.getProject))
+  changesService.foreach { service =>
     // creating a new REPL resets the "module changed" state
-    ReplChangesObserver.onStartedRepl(module)
+    service.onReplStarted(module)
 
-    Toolkit.getDefaultToolkit.addAWTEventListener(
-      (event: AWTEvent) =>
-        if SwingUtilities.isDescendingFrom(event.getSource.asInstanceOf[Component], this) then
-          banner.setVisible(ReplChangesObserver.hasModuleChanged(module)),
-      AWTEvent.FOCUS_EVENT_MASK
-    )
+    // A focus listener on the console's own editors, rather than a global AWT event listener that
+    // outlives the console it was installed for.
+    val bannerRefresher = new FocusAdapter:
+      override def focusGained(event: FocusEvent): Unit =
+        banner.setVisible(service.hasModuleChanged(module))
+    getConsoleEditor.getContentComponent.addFocusListener(bannerRefresher)
+    getHistoryViewer.getContentComponent.addFocusListener(bannerRefresher)
+  }
 
   // We need this here because the overridden ConsoleExecuteAction needs to determine whether
   // the console is hosting a Scala 3 REPL or something else
@@ -78,6 +79,10 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
         updatedText,
         if text.trim == scalaPromptText then ConsoleViewContentType.NORMAL_OUTPUT else contentType
       )
+
+  override def dispose(): Unit =
+    changesService.foreach(_.onReplClosed(module))
+    super.dispose()
 
 object Repl:
   val initialCommandsFileName = ".repl-commands"
