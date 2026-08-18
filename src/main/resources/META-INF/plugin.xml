@@ -2,7 +2,6 @@
 <idea-plugin>
     <id>fi.aalto.cs.replace</id>
     <name>REPLace</name>
-    <version>1.2.1</version>
     <vendor>LeTech</vendor>
 
     <description>
@@ -10,11 +9,10 @@
         REPL experience for Scala courses.
     </description>
 
-    <idea-version since-build="252"/>
+    <idea-version since-build="262"/>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
-    <depends>com.intellij.properties</depends>
     <depends>org.intellij.scala</depends>
 
     <resource-bundle>messages.resources</resource-bundle>
