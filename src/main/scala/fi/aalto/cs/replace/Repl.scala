@@ -2,16 +2,20 @@ package fi.aalto.cs.replace
 
 import com.intellij.execution.process.{ProcessEvent, ProcessHandler, ProcessListener}
 import com.intellij.execution.ui.ConsoleViewContentType
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
+import com.intellij.openapi.editor.colors.TextAttributesKey
+import com.intellij.openapi.editor.markup.{HighlighterLayer, HighlighterTargetArea, TextAttributes}
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import fi.aalto.cs.replace.services.ReplChangesService
 import fi.aalto.cs.replace.utils.ModuleUtils
 import fi.aalto.cs.replace.utils.ModuleUtils.{getInitialReplCommands, getUpdatedText}
+import com.intellij.util.ui.UIUtil
 import fi.aalto.cs.replace.ui.ReplBannerPanel
 import org.jetbrains.plugins.scala.console.ScalaLanguageConsole
 import org.jetbrains.plugins.scala.console.replace.ScalaExecutor
 
-import java.awt.BorderLayout
+import java.awt.{BorderLayout, Color, Font}
 import java.awt.event.{FocusAdapter, FocusEvent}
 import java.io.OutputStream
 import java.nio.file.Path
@@ -25,6 +29,11 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   private var pendingMultilineSubmissions: List[Scala3MultilineSubmission] = List.empty
   private var multilineSubmissionsToRetry: List[Scala3MultilineSubmission] = List.empty
 
+  /** The rewritten welcome text, set by `print` (possibly off the EDT) and consumed by the flush
+    * (on the EDT) that lands the text in the history document.
+    */
+  @volatile private var pendingWelcomeStyling: Option[String] = None
+
   private val submissionCleanupListener = new ProcessListener:
     override def processTerminated(event: ProcessEvent): Unit =
       readyForUserInput = false
@@ -35,8 +44,9 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   add(banner, BorderLayout.NORTH)
 
   // Do not show the warning banner for non-A+ courses
+  private val isCoursesProject = Repl.isCoursesProject(module.getProject)
   private val changesService: Option[ReplChangesService] =
-    Option.when(Repl.isCoursesProject(module.getProject))(ReplChangesService(module.getProject))
+    Option.when(isCoursesProject)(ReplChangesService(module.getProject))
   changesService.foreach { service =>
     // creating a new REPL resets the "module changed" state
     service.onReplStarted(module)
@@ -98,11 +108,14 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
   override def print(text: String, contentType: ConsoleViewContentType): Unit =
     val events = stateLock.synchronized(outputTracker.append(text))
 
-    var updatedText = text
+    var updatedText                    = text
+    var welcomeToStyle: Option[String] = None
     if events.welcomeCompleted then
       val commands = initialCommands
       // Rewriting the banner is only possible when the console delivered the line unsplit.
-      if text == Repl.welcomeLine then updatedText = getUpdatedText(module, commands, text)
+      if text == Repl.welcomeLine then
+        updatedText = getUpdatedText(module, commands, text, isCoursesProject)
+        welcomeToStyle = Some(updatedText)
 
       // Normally, in Scala 2, we would have used the "-i" argument to pass initial REPL commands
       // Unfortunately, this has not been ported into Scala 3
@@ -143,8 +156,72 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
 
     if body.nonEmpty && !(startupInProgress && body.trim.isEmpty) then
       super.print(body, contentType)
+      // Published only after the text has reached the deferred buffer, so a flush running
+      // concurrently on the EDT cannot observe the request before the text it refers to.
+      welcomeToStyle.foreach(welcome => pendingWelcomeStyling = Some(welcome))
     if promptPart.nonEmpty && !startupInProgress then
       super.print(promptPart, ConsoleViewContentType.NORMAL_OUTPUT)
+
+  /** Styling cannot be expressed through the printed content types, because
+    * [[org.jetbrains.plugins.scala.console.ScalaLanguageConsole]] coerces everything printed during
+    * its welcome phase to one content type of its own. The flush that lands the text in the history
+    * document runs on the EDT and calls this method, so the styling is applied right after it as
+    * markup highlighters.
+    */
+  override def flushDeferredText(): Unit =
+    super.flushDeferredText()
+    // Taken rather than peeked. The text was already in the deferred buffer when the request was
+    // published, so the flush above has landed it. Keeping a missed request would rescan the whole
+    // (ever growing) document on every later flush.
+    val request = pendingWelcomeStyling
+    pendingWelcomeStyling = None
+    request.foreach { welcomeText =>
+      val editor = getHistoryViewer
+      val startOffset =
+        if editor.isDisposed then -1 else editor.getDocument.getText.lastIndexOf(welcomeText)
+      if startOffset >= 0 then
+        var offset = startOffset
+        Repl.welcomeSegments(welcomeText, module.getName).foreach { (segment, style) =>
+          editor.getMarkupModel.addRangeHighlighter(
+            offset,
+            offset + segment.length,
+            HighlighterLayer.ADDITIONAL_SYNTAX,
+            welcomeTextAttributes(style),
+            HighlighterTargetArea.EXACT_RANGE
+          )
+          offset += segment.length
+        }
+    }
+
+  private def welcomeTextAttributes(style: Repl.WelcomeStyle): TextAttributes =
+    style match
+      case Repl.WelcomeStyle.Body =>
+        foregroundAttributes(getHistoryViewer.getColorsScheme.getDefaultForeground, Font.PLAIN)
+      case Repl.WelcomeStyle.Muted =>
+        foregroundAttributes(UIUtil.getContextHelpForeground, Font.PLAIN)
+      case Repl.WelcomeStyle.Module =>
+        attributesFromScheme(DefaultLanguageHighlighterColors.CLASS_NAME, Font.BOLD)
+
+  /** Attributes carrying nothing but a foreground color and a font style. Built with setters
+    * because the corresponding [[TextAttributes]] constructor would require passing `null` for the
+    * background, effect color and effect type.
+    */
+  private def foregroundAttributes(foreground: Color, fontType: Int): TextAttributes =
+    val attributes = new TextAttributes()
+    attributes.setForegroundColor(foreground)
+    attributes.setFontType(fontType)
+    attributes
+
+  private def attributesFromScheme(key: TextAttributesKey, fontType: Int): TextAttributes =
+    val scheme = getHistoryViewer.getColorsScheme
+    val attributes = Option(scheme.getAttributes(key))
+      .map(_.clone())
+      .getOrElse(new TextAttributes())
+    attributes.setForegroundColor(
+      Option(attributes.getForegroundColor).getOrElse(scheme.getDefaultForeground)
+    )
+    attributes.setFontType(fontType)
+    attributes
 
   override def dispose(): Unit =
     readyForUserInput = false
@@ -185,6 +262,58 @@ object Repl:
   private[replace] val promptText  = "scala>"
   private[replace] val promptToken = promptText + " "
   private[replace] val welcomeLine = "Type in expressions for evaluation. Or try :help.\n"
+
+  private[replace] enum WelcomeStyle:
+    case Body, Muted, Module
+
+  /** Splits the welcome text into consecutive (text, style) segments that reconstruct it exactly.
+    * The styled parts are the greeting line (with the module name picked out), the labels of the
+    * indented quick-reference entries, and the auto-import summary. Everything else is
+    * [[WelcomeStyle.Body]] and keeps the console's default attributes.
+    */
+  private[replace] def welcomeSegments(
+      welcomeText: String,
+      moduleName: String
+  ): Seq[(String, WelcomeStyle)] =
+    val styled               = Seq.newBuilder[(Int, Int, WelcomeStyle)]
+    var offset               = 0
+    var previousLineWasBlank = false
+
+    // Iterating with the separators keeps the running offset exact whatever the line terminator
+    // is; `linesIterator` strips a "\r\n" down to one character less than it consumed.
+    welcomeText.linesWithSeparators.zipWithIndex.foreach { (rawLine, lineIndex) =>
+      val line = rawLine.stripLineEnd
+      if lineIndex == 0 then
+        val moduleStart = line.lastIndexOf(moduleName)
+        if moduleStart >= 0 then
+          val moduleEnd = moduleStart + moduleName.length
+          styled += ((offset, offset + moduleStart, WelcomeStyle.Muted))
+          styled += ((offset + moduleStart, offset + moduleEnd, WelcomeStyle.Module))
+          styled += ((offset + moduleEnd, offset + line.length, WelcomeStyle.Muted))
+        else styled += ((offset, offset + line.length, WelcomeStyle.Muted))
+      else if line.startsWith("  ") then
+        val colon = line.indexOf(':', 2)
+        if colon >= 0 then styled += ((offset + 2, offset + colon + 1, WelcomeStyle.Muted))
+      else if line.nonEmpty then
+        if previousLineWasBlank then styled += ((offset, offset + line.length, WelcomeStyle.Muted))
+        else
+          val colon = line.indexOf(':')
+          if colon >= 0 then styled += ((offset, offset + colon + 1, WelcomeStyle.Muted))
+
+      previousLineWasBlank = line.isEmpty
+      offset += rawLine.length
+    }
+
+    val segments = Seq.newBuilder[(String, WelcomeStyle)]
+    var position = 0
+    for (start, end, style) <- styled.result() do
+      if start > position then
+        segments += ((welcomeText.substring(position, start), WelcomeStyle.Body))
+      if end > start then segments += ((welcomeText.substring(start, end), style))
+      position = end
+    if position < welcomeText.length then
+      segments += ((welcomeText.substring(position), WelcomeStyle.Body))
+    segments.result()
 
   def additionalArguments(project: Project): String =
     val basePath = project.getBasePath
