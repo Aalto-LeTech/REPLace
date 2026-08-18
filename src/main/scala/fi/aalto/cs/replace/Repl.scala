@@ -44,7 +44,7 @@ class Repl(module: Module) extends ScalaLanguageConsole(module: Module):
 
   // We need this here because the overridden ConsoleExecuteAction needs to determine whether
   // the console is hosting a Scala 3 REPL or something else
-  val isScala3REPL: Boolean              = ModuleUtils.isScala3Module(module)
+  val isScala3REPL: Boolean = ModuleUtils.isScala3Module(module)
 
   override def print(text: String, contentType: ConsoleViewContentType): Unit =
     var updatedText = text

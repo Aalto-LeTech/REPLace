@@ -6,6 +6,7 @@ val scalaReplTestRuntime = configurations.create("scalaReplTestRuntime")
 plugins {
     id("org.jetbrains.intellij.platform") version "2.18.1"
     id("scala")
+    id("com.diffplug.spotless") version "8.9.0"
 }
 
 group = "fi.aalto.cs.replace"
@@ -48,6 +49,12 @@ intellijPlatform {
         ideaVersion {
             sinceBuild = "262"
         }
+    }
+}
+
+spotless {
+    scala {
+        scalafmt("3.8.0").configFile(".scalafmt.conf")
     }
 }
 
