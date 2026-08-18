@@ -1,54 +1,67 @@
 package fi.aalto.cs.replace.utils
 
-import com.intellij.openapi.actionSystem.{CommonDataKeys, DataContext}
+import com.intellij.openapi.actionSystem.{CommonDataKeys, DataContext, PlatformCoreDataKeys}
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.keymap.KeymapManager
 import com.intellij.openapi.module.{Module, ModuleUtilCore}
 import com.intellij.openapi.project.{Project, ProjectUtil}
-import com.intellij.openapi.roots.{ModuleRootManager, OrderEnumerator, OrderEntry, RootPolicy}
 import com.intellij.openapi.util.io.FileUtilRt
 import fi.aalto.cs.replace.Repl
-import org.apache.commons.io.FileUtils
-import org.jetbrains.annotations.NotNull
-import org.slf4j.LoggerFactory
+import org.jetbrains.plugins.scala.project.ModuleExt
 
 import java.io.IOException
-import java.nio.charset.StandardCharsets
-import java.nio.file.Paths
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Files, Paths}
 import scala.io.Source
-import scala.jdk.javaapi.CollectionConverters.asJava
+import scala.jdk.CollectionConverters.*
 
 object ModuleUtils:
-  private val Logger = LoggerFactory.getLogger(ModuleUtils.getClass)
+  private val logger = Logger.getInstance(ModuleUtils.getClass)
 
-  def getModuleDirectory(@NotNull module: Module): String =
+  def getModuleDirectory(module: Module): String =
     FileUtilRt.toSystemIndependentName(ModuleUtilCore.getModuleDirPath(module))
 
-  def getModuleOfEditorFile(
-      @NotNull project: Project,
-      @NotNull dataContext: DataContext
+  /** Finds the module a new REPL should be started for.
+    *
+    * The priority order is:
+    *   1. The module of the file open in the editor.
+    *   1. The module selected in the project tree (issue #10).
+    *   1. The module of the file selected in the project tree.
+    *
+    * Only modules accepted by `isEligible` (by default: those with a Scala SDK, to avoid the "no
+    * Scala facet configured for module" error) are considered; other candidates fall through to the
+    * next rule.
+    */
+  def getScalaReplModule(
+      project: Project,
+      dataContext: DataContext,
+      isEligible: Module => Boolean = hasScalaSdkLibrary
   ): Option[Module] =
+    getModuleOfEditorFile(project, dataContext)
+      .filter(isEligible)
+      .orElse(Option(PlatformCoreDataKeys.MODULE.getData(dataContext)).filter(isEligible))
+      .orElse(getModuleOfSelectedFile(project, dataContext).filter(isEligible))
+
+  def getModuleOfEditorFile(project: Project, dataContext: DataContext): Option[Module] =
     Option(CommonDataKeys.EDITOR.getData(dataContext))
       .flatMap(editor => Option(FileDocumentManager.getInstance.getFile(editor.getDocument)))
       .flatMap(openFile => Option(ModuleUtilCore.findModuleForFile(openFile, project)))
 
-  def getModuleOfSelectedFile(
-      @NotNull project: Project,
-      @NotNull dataContext: DataContext
-  ): Option[Module] =
+  def getModuleOfSelectedFile(project: Project, dataContext: DataContext): Option[Module] =
     Option(CommonDataKeys.VIRTUAL_FILE.getData(dataContext))
       .flatMap(file => Option(ModuleUtilCore.findModuleForFile(file, project)))
 
   // O1_SPECIFIC
-  private def naiveValidate(@NotNull command: String): Boolean =
+  private def naiveValidate(command: String): Boolean =
     command.matches("import\\so1\\.[a-z]*(\\*|\\.\\*)$")
 
-  private def clearCommands(@NotNull imports: List[String]): List[String] =
+  private def clearCommands(imports: List[String]): List[String] =
     imports
       .map(_.replace("import ", ""))
       .map(_.replace(".*", ""))
 
-  private def getCommandsText(@NotNull imports: List[String]): String =
+  private def getCommandsText(imports: List[String]): String =
     imports.length match
       case 0 => ""
       case 1 => MyBundle.message("ui.repl.console.welcome.autoImport.single.message", imports.head)
@@ -59,9 +72,9 @@ object ModuleUtils:
         )
 
   def getUpdatedText(
-      @NotNull module: Module,
-      @NotNull commands: List[String],
-      @NotNull originalText: String
+      module: Module,
+      commands: List[String],
+      originalText: String
   ): String =
     val runConsoleShortCut     = getPrettyKeyMapString("Scala.RunConsole")
     val executeConsoleShortCut = getPrettyKeyMapString("ScalaConsole.Execute")
@@ -85,7 +98,7 @@ object ModuleUtils:
         runConsoleShortCut
       )
     else
-      val validCommands   = commands.filter(command => naiveValidate(command))
+      val validCommands   = commands.filter(naiveValidate)
       val clearedCommands = clearCommands(validCommands)
       val commandsText    = getCommandsText(clearedCommands)
 
@@ -97,8 +110,7 @@ object ModuleUtils:
         originalText
       )
 
-  @NotNull
-  private def getPrettyKeyMapString(@NotNull actionId: String): String =
+  private def getPrettyKeyMapString(actionId: String): String =
     val shortCuts = KeymapManager.getInstance.getActiveKeymap
       .getShortcuts(actionId)
 
@@ -113,33 +125,26 @@ object ModuleUtils:
         .mkString("+")
     else "ui.repl.console.welcome.shortcutMissing"
 
-  def getModuleRoot(@NotNull moduleFilePath: String): String =
-    val lastIndexOf = moduleFilePath.lastIndexOf("/")
-    moduleFilePath.substring(0, lastIndexOf + 1)
-
   /** Creates the initial REPL commands file if it does not exist yet, otherwise does nothing.
     */
-  def createInitialReplCommandsFile(@NotNull module: Module): Unit =
+  def createInitialReplCommandsFile(module: Module): Unit =
     val commands = getInitialReplCommands(module)
-    val file = Paths
-      .get(getModuleDirectory(module), Repl.initialCommandsFileName)
-      .toFile
-    if commands.nonEmpty && !file.exists then
-      try FileUtils.writeLines(file, StandardCharsets.UTF_8.name, asJava(commands))
-      catch case ex: IOException => Logger.error("Could not write REPL initial commands file", ex)
+    val file     = Paths.get(getModuleDirectory(module), Repl.initialCommandsFileName)
+    if commands.nonEmpty && !Files.exists(file) then
+      try Files.write(file, commands.asJava, UTF_8)
+      catch case ex: IOException => logger.error("Could not write REPL initial commands file", ex)
 
-  def initialReplCommandsFileExists(@NotNull module: Module): Boolean =
-    Paths
-      .get(getModuleDirectory(module), Repl.initialCommandsFileName)
-      .toFile
-      .exists
+  def initialReplCommandsFileExists(module: Module): Boolean =
+    Files.exists(Paths.get(getModuleDirectory(module), Repl.initialCommandsFileName))
 
-  @NotNull
   def getInitialReplCommands(module: Module): List[String] =
     val dir = ProjectUtil.guessModuleDir(module)
     if dir == null then return List()
+    // The module dir may not be mappable to a real path (e.g. an in-memory filesystem),
+    // in which case there is no commands file to read.
     val commandsFile =
-      dir.toNioPath.resolve(Repl.initialCommandsFileName).toFile
+      try dir.toNioPath.resolve(Repl.initialCommandsFileName).toFile
+      catch case _: UnsupportedOperationException => return List()
     if commandsFile.exists && commandsFile.canRead then
       val source = Source.fromFile(commandsFile)
       try source.getLines().toList
@@ -149,25 +154,6 @@ object ModuleUtils:
   private def isTopLevelModule(module: Module): Boolean =
     module.getName.equals(module.getProject.getName)
 
-  def hasScalaSdkLibrary(@NotNull module: Module): Boolean =
-    module.hasLibrary(_.getPresentableName.contains("scala-sdk-"))
+  def hasScalaSdkLibrary(module: Module): Boolean = module.hasScala
 
-  def isScala3Module(module: Module): Boolean =
-    module.hasLibrary(library => library.getPresentableName.contains("scala-sdk-3"))
-
-  extension (module: Module)
-    private def hasLibrary(predicate: OrderEntry => Boolean): Boolean =
-      ModuleRootManager
-        .getInstance(module)
-        .orderEntries()
-        .librariesOnly()
-        .exists(predicate)
-
-  private class ExistsRootPolicy(p: OrderEntry => Boolean) extends RootPolicy[Boolean]:
-    override def visitOrderEntry(orderEntry: OrderEntry, value: Boolean): Boolean =
-      value || p(orderEntry)
-  end ExistsRootPolicy
-
-  extension (orderEnumerator: OrderEnumerator)
-    private def exists(p: OrderEntry => Boolean): Boolean =
-      orderEnumerator.process(ExistsRootPolicy(p), false)
+  def isScala3Module(module: Module): Boolean = module.hasScala3
