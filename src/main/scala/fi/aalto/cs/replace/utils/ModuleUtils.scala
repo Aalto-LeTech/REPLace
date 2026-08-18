@@ -164,8 +164,10 @@ object ModuleUtils:
         .exists(predicate)
 
   private class ExistsRootPolicy(p: OrderEntry => Boolean) extends RootPolicy[Boolean]:
-    override def visitOrderEntry(orderEntry: OrderEntry, value: Boolean): Boolean = value || p(orderEntry)
+    override def visitOrderEntry(orderEntry: OrderEntry, value: Boolean): Boolean =
+      value || p(orderEntry)
   end ExistsRootPolicy
 
-  extension(orderEnumerator: OrderEnumerator)
-    private def exists(p: OrderEntry => Boolean): Boolean = orderEnumerator.process(ExistsRootPolicy(p), false)
+  extension (orderEnumerator: OrderEnumerator)
+    private def exists(p: OrderEntry => Boolean): Boolean =
+      orderEnumerator.process(ExistsRootPolicy(p), false)
