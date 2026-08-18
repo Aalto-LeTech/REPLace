@@ -4,10 +4,12 @@
 
 package org.jetbrains.plugins.scala.console.replace
 
-import com.intellij.openapi.application.ApplicationManager
 import fi.aalto.cs.replace.Repl
 
 import org.jetbrains.plugins.scala.console.ScalaConsoleInfo
+import org.jetbrains.plugins.scala.extensions.invokeAndWait
+
+import java.nio.charset.StandardCharsets.UTF_8
 
 object ScalaExecutor:
   /** Runs a single line of Scala code in the context of the provided REPL console.
@@ -22,8 +24,8 @@ object ScalaExecutor:
 
     val outputStream = processHandler.getProcessInput
     if outputStream != null then
-      outputStream.write((command + "\n").getBytes)
+      outputStream.write((command + "\n").getBytes(UTF_8))
       outputStream.flush()
 
-    // this must be invoked from EDT because it accesses the IntelliJ PSI
-    ApplicationManager.getApplication.invokeLater(() => console.textSent(command))
+    // This must finish on EDT before another prompt can trigger the next startup command.
+    invokeAndWait { console.textSent(command) }
