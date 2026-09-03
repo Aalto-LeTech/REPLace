@@ -1,31 +1,34 @@
-// The reason for this class being in a separate package is that the runLine method
-// uses the ScalaLanguageConsole.textSent() method, which is package private.
-// Therefore, to call it, we must be in the same package as the console: org.jetbrains.plugins.scala.console.
+// runLine calls ScalaLanguageConsole.textSent(), which is private[console] and therefore visible
+// to this subpackage of org.jetbrains.plugins.scala.console.
 
 package org.jetbrains.plugins.scala.console.replace
 
 import fi.aalto.cs.replace.Repl
 
-import org.jetbrains.plugins.scala.console.ScalaConsoleInfo
-import org.jetbrains.plugins.scala.extensions.invokeAndWait
+import com.intellij.openapi.application.{ApplicationManager, ModalityState}
+import com.intellij.openapi.util.Condition
+import com.intellij.util.concurrency.annotations.{RequiresBackgroundThread, RequiresReadLockAbsence}
 
+import java.io.IOException
 import java.nio.charset.StandardCharsets.UTF_8
 
 object ScalaExecutor:
-  /** Runs a single line of Scala code in the context of the provided REPL console.
-    * @param console
-    *   An instance of our A+ enhanced REPL.
-    * @param command
-    *   A single line (no newlines) of Scala code to execute.
+  /** Runs one line of Scala code (no newlines) in the given REPL console. The caller must hold no
+    * read lock, because this blocks in the pipe write while the EDT may await the write lock.
     */
+  @RequiresBackgroundThread(generateAssertion = false)
+  @RequiresReadLockAbsence
   def runLine(console: Repl, command: String): Unit =
-    val processHandler = ScalaConsoleInfo.getProcessHandler(console.getConsoleEditor)
-    if processHandler == null then return
-
-    val outputStream = processHandler.getProcessInput
-    if outputStream != null then
-      outputStream.write((command + "\n").getBytes(UTF_8))
-      outputStream.flush()
-
-    // This must finish on EDT before another prompt can trigger the next startup command.
-    invokeAndWait { console.textSent(command) }
+    val outputStream = console.attachedProcessInput.getOrElse {
+      throw new IOException("The Scala REPL process has no input stream")
+    }
+    outputStream.write((command + "\n").getBytes(UTF_8))
+    outputStream.flush()
+    // invokeLater, or an EDT already waiting on this console would deadlock, and one command per
+    // prompt with a FIFO EDT queue keeps the echo ordered. `textSent` touches PSI, so no `any()`
+    // modality, and the expiry condition keeps it off a disposed console.
+    ApplicationManager.getApplication.invokeLater(
+      () => console.textSent(command + "\n"),
+      ModalityState.nonModal(),
+      ((_: Any) => console.isReplDisposed): Condition[Any]
+    )

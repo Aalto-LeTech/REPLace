@@ -4,7 +4,7 @@ import com.intellij.DynamicBundle
 import org.jetbrains.annotations.{Nls, PropertyKey}
 
 object MyBundle:
-  private val bundle = DynamicBundle(this.getClass, "messages.resources")
+  private val bundle = new DynamicBundle(this.getClass, "messages.resources")
   @Nls
   def message(
       @PropertyKey(resourceBundle = "messages.resources") key: String,

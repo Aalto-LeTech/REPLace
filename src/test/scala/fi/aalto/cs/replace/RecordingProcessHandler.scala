@@ -9,32 +9,45 @@ import scala.jdk.CollectionConverters.*
 
 /** Records everything written to the process input, grouped into one chunk per flush.
   *
-  * Assertions should work on chunks rather than the raw stream where the IntelliJ console is
-  * involved: the console additionally echoes text printed as USER_INPUT (from `addToHistory`) into
-  * the process input asynchronously, and matching on chunks keeps tests deterministic regardless of
-  * whether that echo has already arrived.
+  * Assert on chunks rather than the raw stream wherever the IntelliJ console is involved, because
+  * the console also echoes USER_INPUT text into the process input asynchronously, and chunk
+  * matching stays deterministic whether or not that echo has arrived.
   */
 final class RecordingProcessHandler extends ProcessHandler:
-  private val chunks = Collections.synchronizedList(new java.util.ArrayList[String])
-  var failWrites     = false
+  private val chunks   = Collections.synchronizedList(new java.util.ArrayList[String])
+  var failWrites       = false
+  var nullProcessInput = false
+
+  /** Runs before the fake pipe accepts a write, to model a process that dies with the bytes in
+    * flight. Key hooks on the payload, or the asynchronous USER_INPUT echo can consume a one-shot.
+    */
+  var onWrite: String => Unit = _ => ()
+
+  /** Runs after the bytes are accepted but before write returns, to model a fast child process. */
+  var afterBytesAccepted: String => Unit = _ => ()
 
   private val failingProcessInput = new OutputStream:
     override def write(value: Int): Unit =
       throw new IOException("simulated write failure")
 
-    override def write(bytes: Array[Byte], offset: Int, length: Int): Unit =
-      throw new IOException("simulated write failure")
-
-    override def flush(): Unit =
-      throw new IOException("simulated write failure")
-
   private val recordingInput = new OutputStream:
     private val current = new ByteArrayOutputStream
 
-    override def write(value: Int): Unit = current.synchronized(current.write(value))
+    override def write(value: Int): Unit =
+      val text = value.toChar.toString
+      onWrite(text)
+      if isProcessTerminated then
+        throw new IOException("process terminated before bytes were accepted")
+      current.synchronized(current.write(value))
+      afterBytesAccepted(text)
 
     override def write(bytes: Array[Byte], offset: Int, length: Int): Unit =
+      val text = new String(bytes, offset, length, UTF_8)
+      onWrite(text)
+      if isProcessTerminated then
+        throw new IOException("process terminated before bytes were accepted")
       current.synchronized(current.write(bytes, offset, length))
+      afterBytesAccepted(text)
 
     override def flush(): Unit = current.synchronized {
       if current.size() > 0 then
@@ -48,7 +61,9 @@ final class RecordingProcessHandler extends ProcessHandler:
   def terminate(): Unit        = notifyProcessTerminated(0)
 
   override def getProcessInput: OutputStream =
-    if failWrites then failingProcessInput else recordingInput
+    if nullProcessInput then null
+    else if failWrites then failingProcessInput
+    else recordingInput
   override protected def destroyProcessImpl(): Unit = notifyProcessTerminated(0)
   override protected def detachProcessImpl(): Unit  = notifyProcessDetached()
   override def detachIsDefault: Boolean             = false
