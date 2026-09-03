@@ -1,12 +1,12 @@
 package fi.aalto.cs.replace
 
 import org.junit.Assert.{assertFalse, assertTrue}
-import org.junit.Test
+import org.junit.jupiter.api.Test
 
 class ReplOutputTrackerTest:
   private val welcome = "Type in expressions for evaluation. Or try :help.\n"
 
-  private def tracker = new ReplOutputTracker("scala>", welcome)
+  private def tracker = new ReplOutputTracker("scala> ", welcome)
 
   @Test def promptAtStreamStartCompletes(): Unit =
     assertTrue(tracker.append("scala> ").promptCompleted)
@@ -15,14 +15,13 @@ class ReplOutputTrackerTest:
     val t = tracker
     assertFalse(t.append("val res0: Int = 3\n").promptCompleted)
     assertTrue(t.append("scala> ").promptCompleted)
+    // The same output and prompt arriving as one chunk complete it just as well.
+    assertTrue(tracker.append("val res0: Int = 3\nscala> ").promptCompleted)
 
   @Test def promptSplitAcrossChunksCompletes(): Unit =
     val t = tracker
     assertFalse(t.append("val res0: Int = 3\nscala>").promptCompleted)
     assertTrue(t.append(" ").promptCompleted)
-
-  @Test def promptAtEndOfMixedChunkCompletes(): Unit =
-    assertTrue(tracker.append("val res0: Int = 3\nscala> ").promptCompleted)
 
   @Test def promptWithoutTrailingSpaceDoesNotComplete(): Unit =
     assertFalse(tracker.append("scala>").promptCompleted)
@@ -73,6 +72,12 @@ class ReplOutputTrackerTest:
   @Test def welcomeLineIsReportedOnlyOnce(): Unit =
     val t = tracker
     assertTrue(t.append(welcome).welcomeCompleted)
+    assertFalse(t.append(welcome).welcomeCompleted)
+
+  @Test def welcomeLinePrintedAfterTheFirstPromptIsNotTheBanner(): Unit =
+    // The REPL's banner precedes its first prompt; the same line later is output from user code.
+    val t = tracker
+    assertTrue(t.append("scala> ").promptCompleted)
     assertFalse(t.append(welcome).welcomeCompleted)
 
   @Test def promptStaysDetectableAfterLongOutput(): Unit =

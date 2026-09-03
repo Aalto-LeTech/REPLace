@@ -9,13 +9,16 @@
         REPL experience for Scala courses.
     </description>
 
-    <idea-version since-build="262"/>
-
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
     <depends>org.intellij.scala</depends>
 
     <resource-bundle>messages.resources</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="REPLace" displayType="BALLOON"
+                           bundle="messages.resources" key="notification.group.replace"/>
+    </extensions>
 
     <actions>
         <action id="Scala.RunConsole"
@@ -27,6 +30,10 @@
         </action>
         <action id="ScalaConsole.Execute"
                 class="org.jetbrains.plugins.scala.console.replace.ConsoleExecuteAction"
+                overrides="true">
+        </action>
+        <action id="Scala.SendSelectionToConsole"
+                class="fi.aalto.cs.replace.actions.SendSelectionToConsoleAction"
                 overrides="true">
         </action>
     </actions>

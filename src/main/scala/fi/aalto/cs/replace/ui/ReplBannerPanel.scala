@@ -6,7 +6,7 @@ import com.intellij.ui.EditorNotificationPanel
 import fi.aalto.cs.replace.services.PluginSettings
 import fi.aalto.cs.replace.utils.MyBundle.message
 
-class ReplBannerPanel(private val project: Project)
+private[replace] final class ReplBannerPanel(project: Project)
     extends EditorNotificationPanel(EditorNotificationPanel.Status.Warning):
   private var isHiddenForSession = false
 
@@ -26,4 +26,3 @@ class ReplBannerPanel(private val project: Project)
   override def setVisible(isVisible: Boolean): Unit =
     val neverShow = PluginSettings(project).neverShowBanner
     super.setVisible(isVisible && !isHiddenForSession && !neverShow)
-  end setVisible

@@ -5,13 +5,18 @@ introductory programming courses.
 
 ## What it changes
 
-REPLace overrides the Scala plugin's `Scala.RunConsole` and `ScalaConsole.Execute` actions.
+REPLace overrides the Scala plugin's `Scala.RunConsole`, `ScalaConsole.Execute` and
+`Scala.SendSelectionToConsole` actions.
 
-- Ctrl+Shift+D starts a REPL for the module of the open file, or of the project tree selection.
+- Ctrl+Shift+D starts a REPL for the module of the open file or the project tree selection, whether or not the tree
+  has focus. A project with one Scala module needs no selection, and one with several offers a chooser.
 - The console opens with a welcome message listing the auto-imported packages and the shortcuts for running code,
   browsing history, and restarting the REPL.
-- If the module code is edited while a REPL is open, a banner reminds the student to restart it for changes to take
-  effect.
+- Multi-line input and semicolon-separated statements on one line reach the Scala 3 REPL one top-level statement
+  group at a time, so redefinitions and repeated reassignments work as if typed line by line. Input sent while the
+  previous one is still running is refused with a hint.
+- A selection sent to the console goes to the REPL of the file's module, or else to the most recently started one.
+- If module code is edited while a REPL is open, a banner reminds the student to restart it.
 
 ## Per-project configuration
 
@@ -24,8 +29,8 @@ Both files are optional.
 -new-syntax -feature -deprecation
 ```
 
-- `<module>/.repl-commands` holds commands to run when the REPL starts. The file is hidden from the file tree. For
-  example:
+- `<module>/.repl-commands` holds commands to run when the REPL starts, loaded as one unit so definitions may span
+  lines. The A+ Courses plugin hides the file from the file tree. For example:
 
 ```scala
 import o1.*

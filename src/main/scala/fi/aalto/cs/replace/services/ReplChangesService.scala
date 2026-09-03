@@ -11,13 +11,10 @@ import com.intellij.openapi.roots.ProjectFileIndex
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import scala.annotation.tailrec
 
-/** Tracks which modules of this project have been edited since their REPL was started, so open
-  * REPLs can warn that they are running outdated code.
-  *
-  * Modules are tracked by name to avoid retaining [[Module]] instances, and document changes are
-  * only inspected while at least one REPL is open for the project.
+/** Tracks which modules have been edited since their REPL was started, so open REPLs can warn that
+  * they are running outdated code. Modules are tracked by name to avoid retaining [[Module]]
+  * instances.
   */
 @Service(Array(Service.Level.PROJECT))
 final class ReplChangesService(project: Project) extends Disposable:
@@ -25,42 +22,33 @@ final class ReplChangesService(project: Project) extends Disposable:
   private val activeReplCounts  = new ConcurrentHashMap[String, Integer]()
   private val listenerInstalled = new AtomicBoolean(false)
 
-  /** Triggered when a REPL has started for a particular module, indicating that all pending code
-    * changes have been applied in the REPL as well.
-    */
+  /** Marks the module's code as applied, which a REPL start means. */
   def onReplStarted(module: Module): Unit =
     if listenerInstalled.compareAndSet(false, true) then
-      EditorFactory.getInstance.getEventMulticaster.addDocumentListener(ChangesListener(), this)
-    activeReplCounts.merge(module.getName, 1, (count, one) => count + one)
+      EditorFactory.getInstance.getEventMulticaster.addDocumentListener(new ChangesListener(), this)
+    activeReplCounts.merge(module.getName, 1, (count, _) => count + 1)
     modifiedModules.remove(module.getName)
 
-  /** Drops one REPL from the module's open count, removing the entry entirely when the last one
-    * closes. Written as a compare-and-set retry rather than `computeIfPresent`, whose "remove this
-    * key" signal is a `null` return from the remapping function.
-    */
-  @tailrec
+  /** Drops one REPL from the module's open count. `computeIfPresent` removes the entry on null. */
   def onReplClosed(module: Module): Unit =
-    val name = module.getName
-    Option(activeReplCounts.get(name)) match
-      case None => ()
-      case Some(count) =>
-        val updated =
-          if count <= 1 then activeReplCounts.remove(name, count)
-          else activeReplCounts.replace(name, count, count - 1)
-        if !updated then onReplClosed(module)
+    activeReplCounts.computeIfPresent(
+      module.getName,
+      (_, count) => if count <= 1 then null else Integer.valueOf(count - 1)
+    )
 
   def hasModuleChanged(module: Module): Boolean = modifiedModules.contains(module.getName)
 
+  /** Only a parent disposable for the document listener; nothing of its own to release. */
   override def dispose(): Unit = ()
 
   private final class ChangesListener extends DocumentListener:
     override def documentChanged(event: DocumentEvent): Unit =
       if activeReplCounts.isEmpty || project.isDisposed || !project.isOpen then return
-      val changedModule = Option(FileDocumentManager.getInstance.getFile(event.getDocument))
+      Option(FileDocumentManager.getInstance.getFile(event.getDocument))
         .flatMap(file => Option(ProjectFileIndex.getInstance(project).getModuleForFile(file)))
         .map(_.getName)
         .filter(activeReplCounts.containsKey)
-      changedModule.foreach(modifiedModules.add)
+        .foreach(modifiedModules.add)
 
 object ReplChangesService:
   def apply(project: Project): ReplChangesService = project.getService(classOf[ReplChangesService])
